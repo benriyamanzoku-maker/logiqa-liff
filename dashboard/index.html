@@ -539,7 +539,7 @@ const _eraToAD = (era,y)=> _eraBase[era]!=null ? _eraBase[era]+Number(y) : null;
 const _pad = (n)=> String(n).padStart(2,"0");
 const _normPlate = (s)=> (s||"").replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)).replace(/[　\s\-－]/g,"").trim();
 // 所有者/使用者欄が「実名なし」のプレースホルダか（＊＊＊・使用者に同じ・同上・空）
-const _isPlaceholder = (s)=>{ const t=(s||"").replace(/[　\s]/g,""); if(!t) return true; if(/^[＊*_＿\-－]+$/.test(t)) return true; return /使用者(に|と)?同じ|同上/.test(t); };
+const _isPlaceholder = (s)=>{ const t=(s||"").replace(/[　\s]/g,""); if(!t) return true; if(/^[＊*_＿\-－]+$/.test(t)) return true; return /使用者.*同じ|同上/.test(t); };
 
 async function _loadItems(file){
   const data = new Uint8Array(await file.arrayBuffer());
@@ -573,7 +573,7 @@ function _valueRowBelow(rows,labelRow){
 function _extract(items){
   const rows = _makeRows(items);
   const result = {};
-  const regLabel = _findLabelRow(rows,"自動車登録番号又は車両番号");
+  const regLabel = _findLabelRow(rows,"車両番号"); // 普通車「自動車登録番号又は車両番号」／軽「車両番号」両対応
   if(regLabel){ const vr=_valueRowBelow(rows,regLabel); if(vr) result.登録番号 = vr.items.map(i=>_toHalf(i.str)).join(" ").replace(/\s+/g," ").trim(); }
   const chassisLabel = _findLabelRow(rows,"車台番号");
   if(chassisLabel){ const vr=_valueRowBelow(rows,chassisLabel); if(vr) result.車台番号 = vr.items.map(i=>_toHalf(i.str)).join("").trim(); }
