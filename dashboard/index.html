@@ -538,6 +538,8 @@ const _eraBase = { 令和:2018, 平成:1988, 昭和:1925, 大正:1911, 明治:18
 const _eraToAD = (era,y)=> _eraBase[era]!=null ? _eraBase[era]+Number(y) : null;
 const _pad = (n)=> String(n).padStart(2,"0");
 const _normPlate = (s)=> (s||"").replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)).replace(/[　\s\-－]/g,"").trim();
+// 所有者/使用者欄が「実名なし」のプレースホルダか（＊＊＊・使用者に同じ・同上・空）
+const _isPlaceholder = (s)=>{ const t=(s||"").replace(/[　\s]/g,""); if(!t) return true; if(/^[＊*_＿\-－]+$/.test(t)) return true; return /使用者(に|と)?同じ|同上/.test(t); };
 
 async function _loadItems(file){
   const data = new Uint8Array(await file.arrayBuffer());
@@ -598,10 +600,13 @@ function _extract(items){
       }
     }
   }
-  const nameLabel = _findLabelRow(rows,"所有者の氏名又は名称");
-  if(nameLabel){ const vr=_valueRowBelow(rows,nameLabel); if(vr) result.所有者氏名 = vr.items.map(i=>i.str.replace(/[　\s]/g,"")).join(" ").trim(); }
-  const addrLabel = _findLabelRow(rows,"所有者の住所");
-  if(addrLabel){ const vr=_valueRowBelow(rows,addrLabel); if(vr) result.所有者住所 = vr.items.filter(i=> i.x<420 && !/^\[/.test(i.str) && !/\]$/.test(i.str.trim())).map(i=>i.str.replace(/[　\s]/g,"")).join("").replace(/[０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)); }
+  // 所有者・使用者の氏名／住所を両方とり、所有者欄が「使用者に同じ／＊＊＊／同上／空」なら使用者を採用
+  const _nameOf=(label)=>{ const lr=_findLabelRow(rows,label); if(!lr) return ""; const vr=_valueRowBelow(rows,lr); return vr? vr.items.map(i=>i.str.replace(/[　\s]/g,"")).join(" ").trim() : ""; };
+  const _addrOf=(label)=>{ const lr=_findLabelRow(rows,label); if(!lr) return ""; const vr=_valueRowBelow(rows,lr); return vr? vr.items.filter(i=> i.x<420 && !/^\[/.test(i.str) && !/\]$/.test(i.str.trim())).map(i=>i.str.replace(/[　\s]/g,"")).join("").replace(/[０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)) : ""; };
+  const ownerName=_nameOf("所有者の氏名又は名称"), ownerAddr=_addrOf("所有者の住所");
+  const userName =_nameOf("使用者の氏名又は名称"), userAddr =_addrOf("使用者の住所");
+  result.所有者氏名 = _isPlaceholder(ownerName) ? (_isPlaceholder(userName)? ownerName : userName) : ownerName;
+  result.所有者住所 = _isPlaceholder(ownerAddr) ? (_isPlaceholder(userAddr)? ownerAddr : userAddr) : ownerAddr;
   const carLabel = _findLabelRow(rows,"車名");
   if(carLabel){ const vr=_valueRowBelow(rows,carLabel); if(vr){ const left=vr.items.filter(i=> i.x<200 && !/^\[/.test(i.str)); result.車名 = left.map(i=>i.str.replace(/[　\s]/g,"")).join(""); } }
   const typeLabel = _findLabelRow(rows,"型式");
