@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>車屋さんのお知らせ便｜店舗ダッシュボード</title>
+<style>
+  :root{ --navy:#1a3c6e; --red:#c0392b; --gold:#b8860b; --line:#06c755; --bg:#e3e8ef; --line-soft:#cbd3de; }
+  *{ box-sizing:border-box; }
+  body{ font-family:"メイリオ","Meiryo",sans-serif; margin:0; background:var(--bg); color:#1a1a1a; }
+  header{ background:var(--navy); color:#fff; padding:14px 22px; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  header h1{ font-size:18px; margin:0; font-weight:bold; }
+  header .sub{ font-size:12px; color:#cdd8ea; }
+  header .me{ margin-left:auto; font-size:13px; color:#dbe4f3; display:flex; align-items:center; gap:12px; }
+  header .me b{ color:#fff; }
+  .wrap{ max-width:1180px; margin:0 auto; padding:22px; }
+  .shopbar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:18px; font-size:13px; color:#445; }
+  .tag{ display:inline-block; padding:3px 10px; border-radius:999px; font-size:12px; font-weight:bold; }
+  .ok{ background:#e6f7ee; color:#1a7a43; } .ng{ background:#fdecea; color:#c0392b; } .neutral{ background:#eef1f5; color:#566; }
+  .kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:22px; }
+  .kpi{ background:#fff; border:1px solid var(--line-soft); border-radius:10px; padding:16px 18px; }
+  .kpi .lbl{ font-size:12px; color:#677; }
+  .kpi .num{ font-size:28px; font-weight:bold; color:var(--navy); margin-top:4px; }
+  .kpi .num.green{ color:var(--line); } .kpi .num.red{ color:var(--red); } .kpi .num.gold{ color:var(--gold); }
+  .kpi .note{ font-size:11px; color:#9aa; margin-top:2px; }
+  h2{ font-size:15px; color:#fff; background:var(--navy); border-radius:7px; padding:9px 14px; margin:26px 0 12px; box-shadow:0 1px 3px rgba(20,40,80,.18); }
+  table{ width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line-soft); border-radius:10px; overflow:hidden; font-size:13px; }
+  th,td{ padding:9px 12px; text-align:left; border-bottom:1px solid #eef1f5; vertical-align:top; }
+  th{ background:#f4f6f9; color:#445; font-size:12px; } tr:last-child td{ border-bottom:none; }
+  .badge{ font-size:11px; font-weight:bold; padding:2px 8px; border-radius:999px; }
+  .b-linked{ background:#e6f7ee; color:var(--line); } .b-unlinked{ background:#fdecea; color:var(--red); }
+  .b-sent{ background:#e6f7ee; color:#1a7a43; } .b-failed{ background:#fdecea; color:#c0392b; } .b-skip{ background:#eef1f5; color:#788; }
+  .veh{ font-size:12px; color:#445; border:1px solid #dde; border-radius:8px; padding:8px 10px; margin-bottom:6px; }
+  .veh:last-child{ margin-bottom:0; } .veh .soon{ color:var(--red); font-weight:bold; } .veh .exp{ color:#9aa; }
+  .opcell{ white-space:nowrap; } .opcell .contact{ margin-top:8px; padding-top:8px; border-top:1px dashed #dde; font-size:12px; color:#445; }
+  .opcell .contact .row1,.opcell .contact .row2{ display:flex; align-items:center; gap:6px; } .opcell .contact .row2{ margin-top:4px; }
+  .opcell .lbl{ color:#778; } .opcell .chk label{ margin-right:10px; cursor:pointer; } .opcell .chk input{ margin-right:3px; vertical-align:middle; }
+  .opcell .phone{ padding:3px 6px; border:1px solid #ccd; border-radius:5px; font-size:12px; width:140px; }
+  .muted{ color:#9aa; font-size:12px; } .loading{ text-align:center; padding:40px; color:#9aa; }
+  button{ font-family:inherit; }
+  .btn{ font-size:11px; font-weight:bold; padding:4px 9px; border-radius:6px; border:1px solid var(--navy); background:#fff; color:var(--navy); cursor:pointer; margin:2px 4px 2px 0; }
+  .btn:hover{ background:var(--navy); color:#fff; }
+  .btn.send{ border-color:var(--line); color:#1a7a43; } .btn.send:hover{ background:var(--line); color:#fff; }
+  .btn.qr{ border-color:var(--gold); color:#8a6400; } .btn.qr:hover{ background:var(--gold); color:#fff; }
+  .btn.mini{ padding:2px 7px; font-size:10.5px; margin-left:6px; }
+  .btn.ghost{ border-color:#9fb1cc; color:#8a99b5; cursor:not-allowed; } .btn.ghost:hover{ background:#fff; color:#8a99b5; }
+  .btn.del{ border-color:var(--red); color:var(--red); } .btn.del:hover{ background:var(--red); color:#fff; }
+  .veh .vdel{ float:right; font-size:10.5px; padding:1px 7px; border:1px solid #e0a9a2; color:#c0392b; background:#fff; border-radius:5px; cursor:pointer; }
+  .veh .vdel:hover{ background:var(--red); color:#fff; border-color:var(--red); }
+  .btn.logout{ font-size:12px; border-color:#9fb1cc; color:#fff; background:transparent; }
+  .btn.logout:hover{ background:#fff; color:var(--navy); }
+  footer{ text-align:center; color:#9aa; font-size:11px; padding:20px; }
+  /* タブ */
+  .tabs{ display:flex; gap:8px; margin-left:8px; align-self:flex-end; }
+  .tab{ font-size:13.5px; font-weight:bold; padding:9px 20px; border:1px solid rgba(255,255,255,.35); border-bottom:none; border-radius:9px 9px 0 0; background:rgba(255,255,255,.10); color:#dbe4f3; cursor:pointer; }
+  .tab:hover{ background:rgba(255,255,255,.22); color:#fff; }
+  .tab.active{ background:#fff; color:var(--navy); border-color:#fff; box-shadow:0 -2px 6px rgba(0,0,0,.08); }
+  /* テンプレ */
+  .tpl-help{ font-size:13px; color:#566; line-height:1.7; background:#f6f8fb; border-left:3px solid var(--navy); padding:10px 14px; border-radius:0 6px 6px 0; margin-bottom:14px; }
+  .tpl-keys{ margin-top:8px; display:flex; gap:7px; flex-wrap:wrap; }
+  .tpl-keys span{ font-size:12px; background:#fff7e6; border:1px solid #e6c98a; color:#8a6400; padding:2px 8px; border-radius:6px; cursor:pointer; }
+  .tpl-card{ background:#fff; border:1px solid var(--line-soft); border-radius:10px; padding:14px 16px; margin-bottom:14px; }
+  .tpl-card h3{ font-size:14px; color:var(--navy); margin:0 0 8px; } .tpl-card h3 .ch{ font-size:11px; font-weight:normal; color:#788; margin-left:8px; }
+  .tpl-card textarea{ width:100%; min-height:84px; font-family:inherit; font-size:13.5px; line-height:1.7; border:1px solid var(--line-soft); border-radius:8px; padding:10px 12px; resize:vertical; }
+  .tpl-card textarea:focus{ outline:none; border-color:var(--navy); }
+  .tpl-prev{ margin-top:9px; background:#f4f6f9; border:1px solid #e6ebf2; border-radius:8px; padding:9px 12px; font-size:13px; line-height:1.7; color:#334; white-space:pre-wrap; }
+  .tpl-prev .pl{ color:#9aa; font-size:11px; display:block; margin-bottom:3px; }
+  .tpl-row{ display:flex; align-items:center; gap:10px; margin-top:9px; }
+  .tpl-row .btn.save{ font-size:13px; padding:7px 16px; border-color:var(--line); color:#1a7a43; } .tpl-row .btn.save:hover{ background:var(--line); color:#fff; }
+  .tpl-row .st{ font-size:12px; color:#788; } .tpl-row .st.ok{ color:#1a7a43; }
+  /* ログイン画面 */
+  #loginView{ max-width:380px; margin:8vh auto; background:#fff; border:1px solid var(--line-soft); border-radius:14px; padding:30px 28px; box-shadow:0 10px 36px rgba(20,40,80,.10); }
+  #loginView h2{ border:none; padding:0; margin:0 0 4px; font-size:19px; text-align:center; }
+  #loginView .lead{ font-size:12.5px; color:#788; text-align:center; margin-bottom:20px; }
+  #loginView label{ font-size:12px; color:#566; display:block; margin:12px 0 4px; }
+  #loginView input{ width:100%; padding:10px 12px; border:1px solid #ccd; border-radius:8px; font-size:14px; }
+  #loginView input:focus{ outline:none; border-color:var(--navy); }
+  #loginView .lbtn{ width:100%; margin:20px 0 0; padding:11px; font-size:15px; font-weight:bold; border:none; border-radius:8px; background:var(--navy); color:#fff; cursor:pointer; }
+  #loginView .lbtn:hover{ background:#15315a; } #loginView .lbtn:disabled{ background:#9fb1cc; cursor:wait; }
+  #loginMsg{ font-size:12.5px; color:var(--red); text-align:center; min-height:18px; margin-top:12px; }
+  .note-box{ font-size:12px; color:#7a5a00; background:#fff7e6; border:1px solid #e6c98a; border-radius:8px; padding:9px 12px; margin:6px 0 0; }
+  /* PDF取込 */
+  .imp{ background:#fff; border:1px solid var(--line-soft); border-radius:10px; padding:14px 16px; }
+  .imp-head{ font-size:13px; color:#566; line-height:1.7; margin-bottom:10px; }
+  .imp-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .imp-row input[type=file]{ font-size:13px; }
+  #pdfPreview{ margin-top:12px; }
+  #pdfPreview table{ font-size:12.5px; }
+  #pdfPreview .err{ color:var(--red); }
+  .imp-actions{ margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .imp-actions .btn.reg{ border-color:var(--line); color:#1a7a43; font-size:13px; padding:7px 16px; }
+  .imp-actions .btn.reg:hover{ background:var(--line); color:#fff; }
+</style>
+</head><body>
+
+<!-- ===== ログイン画面 ===== -->
+<div id="loginView" style="display:none">
+  <h2>店舗ログイン</h2>
+  <div class="lead">車屋さんのお知らせ便</div>
+  <label>メールアドレス</label>
+  <input type="email" id="liEmail" autocomplete="username" placeholder="店舗のメールアドレス">
+  <label>パスワード</label>
+  <input type="password" id="liPass" autocomplete="current-password" placeholder="パスワード">
+  <button class="lbtn" id="liBtn" onclick="doLogin()">ログイン</button>
+  <div id="loginMsg"></div>
+</div>
+
+<!-- ===== アプリ本体 ===== -->
+<div id="appView" style="display:none">
+<header>
+  <div>
+    <h1>店舗ダッシュボード</h1>
+    <div class="sub">車屋さんのお知らせ便 ／ 顧客・連携・車検通知の管理</div>
+  </div>
+  <nav class="tabs">
+    <button class="tab active" id="tab-customers" onclick="switchView('customers')">顧客管理</button>
+    <button class="tab" id="tab-templates" onclick="switchView('templates')">文面テンプレート</button>
+  </nav>
+  <div class="me"><span id="meShop"></span><button class="btn logout" onclick="doLogout()">ログアウト</button></div>
+</header>
+
+<div class="wrap">
+  <div class="shopbar" id="shopbar"></div>
+
+  <section id="view-customers">
+    <div class="kpis" id="kpis"></div>
+    <h2>顧客一覧（LINE連携状況・保有車両）</h2>
+    <div id="custWrap"><div class="loading">読み込み中…</div></div>
+    <h2>車検証PDFを取り込む</h2>
+    <div class="imp">
+      <div class="imp-head">
+        電子車検証（A4「自動車検査証記録事項」）のPDFを選ぶと、お客様・車両・車検満了日を自動で読み取ります。複数選択可。
+        <span class="muted">※読み取りはこのブラウザ内だけで行われます（PDFは外部に送信・保存されません）。内容を確認してから登録できます。</span>
+      </div>
+      <div class="imp-row">
+        <input type="file" id="pdfInput" accept="application/pdf" multiple>
+        <button class="btn" id="pdfParseBtn" onclick="parsePdfs()">読み取る</button>
+        <span class="muted" id="pdfMsg"></span>
+      </div>
+      <div id="pdfPreview"></div>
+    </div>
+    <h2>送信履歴（直近80件）</h2>
+    <div id="notifWrap"></div>
+  </section>
+
+  <section id="view-templates" style="display:none">
+    <h2>SMS送信元番号（この店舗）</h2>
+    <div class="tpl-help">
+      SMSで送る場合の<b>送信元として表示したい番号</b>です。
+      <span class="muted">※実送信はSMSプロバイダ契約後に有効化されます（現在は設定の保管のみ）。</span>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="smsFromInput" placeholder="例）0761-00-0000" style="padding:6px 10px;border:1px solid #ccd;border-radius:6px;min-width:220px">
+        <button class="btn" onclick="saveSmsFrom()">保存</button>
+        <span class="muted" id="smsFromMsg"></span>
+      </div>
+    </div>
+    <h2>送信文面テンプレート（この店舗）</h2>
+    <div class="tpl-help">
+      お客様へ送る文章を編集できます。下の<b>差込キーワード</b>はそのまま書くと送信時に実際の値へ置き換わります。空欄で保存すると<b>初期文に戻ります</b>。
+      <div class="tpl-keys">
+        <span onclick="insertKey('{店舗名}')">{店舗名}</span><span onclick="insertKey('{お客様名}')">{お客様名}</span><span onclick="insertKey('{ナンバー}')">{ナンバー}</span><span onclick="insertKey('{車種}')">{車種}</span><span onclick="insertKey('{満了日}')">{満了日}</span><span onclick="insertKey('{残日数}')">{残日数}</span>
+      </div>
+    </div>
+    <div id="tplWrap"><div class="loading">読み込み中…</div></div>
+  </section>
+</div>
+<footer>株式会社LOGIQA ／ 車屋さんのお知らせ便</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="./config.js"></script>
+<script>
+const TODAY = new Date();
+const daysUntil = (s) => { if(!s) return null; return Math.round((new Date(s) - TODAY)/86400000); };
+const esc = (s) => (s==null?"":String(s)).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+if(!window.SB_URL || !window.SB_ANON){ alert("設定(config.js)が読み込めません。build-dashboard-config.mjs を実行してください。"); }
+const sb = window.supabase.createClient(window.SB_URL, window.SB_ANON);
+if(window.pdfjsLib){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"; }
+
+// shops は列GRANTのため select * 不可。許可列のみ明示する。
+const SHOP_COLS = "id,name,plan,created_at,liff_id,tpl_reminder,tpl_message,tpl_postcard,tpl_reminder_2w,sms_from";
+
+let SHOP = null, CUST_MAP = {}, TPL = {};
+
+// ---------- 認証 ----------
+async function doLogin(){
+  const email = document.getElementById("liEmail").value.trim();
+  const pass = document.getElementById("liPass").value;
+  const msg = document.getElementById("loginMsg");
+  const btn = document.getElementById("liBtn");
+  if(!email || !pass){ msg.textContent = "メールとパスワードを入力してください。"; return; }
+  btn.disabled = true; msg.textContent = "ログイン中…"; msg.style.color = "#788";
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  btn.disabled = false;
+  if(error){ msg.style.color = "#c0392b"; msg.textContent = "ログインできませんでした：" + (error.message||""); return; }
+  msg.textContent = "";
+  await boot();
+}
+async function doLogout(){ await sb.auth.signOut(); location.reload(); }
+
+// ---------- ビュー切替 ----------
+function switchView(view){
+  const isTpl = view === "templates";
+  document.getElementById("view-customers").style.display = isTpl ? "none" : "";
+  document.getElementById("view-templates").style.display = isTpl ? "" : "none";
+  document.getElementById("tab-customers").classList.toggle("active", !isTpl);
+  document.getElementById("tab-templates").classList.toggle("active", isTpl);
+}
+
+// ---------- 起動：セッション確認 → 自店ロード ----------
+async function boot(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ show("login"); return; }
+  show("app");
+  // 自店を取得（RLSで自店1件のみ返る）
+  const { data:shops, error } = await sb.from("shops").select(SHOP_COLS);
+  if(error){ document.getElementById("custWrap").innerHTML = '<div class="loading">店舗情報の取得に失敗：'+esc(error.message)+'</div>'; return; }
+  SHOP = (shops && shops[0]) || null;
+  if(!SHOP){ document.getElementById("custWrap").innerHTML = '<div class="loading">この利用者に店舗が割り当てられていません。</div>'; return; }
+  document.getElementById("meShop").innerHTML = "店舗：<b>"+esc(SHOP.name)+"</b>";
+  document.getElementById("shopbar").innerHTML =
+    `<span class="tag neutral">プラン：${esc(SHOP.plan||'-')}</span>`
+    + `<span class="tag ${SHOP.liff_id?'ok':'ng'}">LINE連携(LIFF)：${SHOP.liff_id?'設定済':'未設定'}</span>`;
+  loadTemplates();
+  await load();
+}
+function show(which){
+  document.getElementById("loginView").style.display = which==="login" ? "" : "none";
+  document.getElementById("appView").style.display   = which==="app"   ? "" : "none";
+}
+
+// ---------- 顧客・車両・履歴 ----------
+async function load(){
+  document.getElementById("custWrap").innerHTML = '<div class="loading">読み込み中…</div>';
+  const [{ data:customers=[] }, { data:vehicles=[] }, { data:notifications=[] }] = await Promise.all([
+    sb.from("customers").select("id,name,line_user_id,linked_at,notify_line,notify_sms,phone,link_token").order("name"),
+    sb.from("vehicles").select("id,customer_id,plate,maker,shaken_expiry,notify_date,pdf_path"),
+    sb.from("notifications").select("customer_id,type,status,message,sent_at").order("sent_at",{ascending:false}).limit(80),
+  ]);
+  CUST_MAP = Object.fromEntries(customers.map(c=>[c.id,c]));
+  const byCust = {};
+  for(const v of vehicles){ (byCust[v.customer_id] ||= []).push(v); }
+
+  // KPI
+  const total = customers.length;
+  const linked = customers.filter(c=>c.line_user_id).length;
+  const rate = total ? Math.round(linked/total*100) : 0;
+  const soon = vehicles.filter(v=>{ const d=daysUntil(v.shaken_expiry); return d!==null && d>=0 && d<=60; }).length;
+  document.getElementById("kpis").innerHTML = `
+    <div class="kpi"><div class="lbl">登録顧客</div><div class="num">${total}</div></div>
+    <div class="kpi"><div class="lbl">LINE連携済</div><div class="num green">${linked}</div><div class="note">連携率 ${rate}%</div></div>
+    <div class="kpi"><div class="lbl">未連携</div><div class="num red">${total-linked}</div><div class="note">通知が届かない顧客</div></div>
+    <div class="kpi"><div class="lbl">60日以内に車検満了</div><div class="num gold">${soon}</div><div class="note">要フォロー</div></div>
+    <div class="kpi"><div class="lbl">登録車両</div><div class="num">${vehicles.length}</div></div>`;
+
+  // 顧客テーブル
+  const rows = customers.map(c=>{
+    const isLinked = !!c.line_user_id;
+    const vs = (byCust[c.id]||[]).map(v=>{
+      const d = daysUntil(v.shaken_expiry);
+      const cls = d!==null && d>=0 && d<=60 ? "soon" : (d!==null && d<0 ? "exp" : "");
+      const dd = d===null ? "" : (d<0 ? `（満了済 ${-d}日前）` : `（あと${d}日）`);
+      return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button><span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${esc(v.shaken_expiry||'-')} ${dd}　通知予定:${esc(v.notify_date||'-')}</div>`;
+    }).join("") || '<span class="muted">車両なし</span>';
+    const badge = isLinked ? `<span class="badge b-linked">連携済</span>` : `<span class="badge b-unlinked">未連携</span>`;
+    const lineOn = c.notify_line !== false, smsOn = !!c.notify_sms;
+    const chBoxes = `<span class="chk"><label><input type="checkbox" id="nl-${c.id}"${lineOn?' checked':''} onchange="saveChannels('${c.id}')">LINE</label>`
+      + `<label><input type="checkbox" id="ns-${c.id}"${smsOn?' checked':''} onchange="saveChannels('${c.id}')">SMS</label></span>`;
+    const contact = `<div class="contact">`
+      + `<div class="row1"><span class="lbl">通知方法</span> ${chBoxes}</div>`
+      + `<div class="row2"><span class="lbl">電話</span><input class="phone" value="${esc(c.phone||'')}" placeholder="未登録" onchange="savePhone('${c.id}',this.value)"></div></div>`;
+    const sendBtn = isLinked
+      ? `<button class="btn send" onclick="sendMessage('${c.id}','${esc(c.name)}')">メッセージ送信</button>`
+      : `<button class="btn send ghost" title="LINE未連携のため送信不可">メッセージ送信</button>`;
+    const ops = `<div class="opcell">`
+      + `<button class="btn" onclick="bindUid('${c.id}')">連携ID設定/変更</button>`
+      + `<button class="btn qr" onclick="generateCard('${c.id}')">QR発行</button>`
+      + sendBtn
+      + `<button class="btn del" onclick="deleteCustomer('${c.id}','${esc(c.name)}')">顧客を削除</button>`
+      + contact + `</div>`;
+    return `<tr><td>${esc(c.name)}</td><td>${badge}<div class="muted">${c.linked_at?esc(c.linked_at.slice(0,10)):''}</div></td><td>${vs}</td><td>${ops}</td></tr>`;
+  }).join("");
+  document.getElementById("custWrap").innerHTML =
+    `<table><thead><tr><th style="width:20%">顧客名</th><th style="width:14%">LINE連携</th><th>保有車両 / 車検満了</th><th style="width:22%">操作</th></tr></thead><tbody>${rows||'<tr><td colspan=4 class="muted">顧客なし</td></tr>'}</tbody></table>`;
+
+  // 送信履歴
+  const cname = Object.fromEntries(customers.map(c=>[c.id,c.name]));
+  const st = (s)=>{ const m={sent:"b-sent",mock_sent:"b-sent",failed:"b-failed"}; if(m[s])return m[s]; return "b-skip"; };
+  const ty = {shaken_reminder:"車検リマインド",shaken_reminder_2w:"車検リマインド(2週前)",year_end:"年末挨拶",broadcast:"一斉配信"};
+  const nrows = notifications.map(n=>`<tr>
+    <td class="muted">${esc((n.sent_at||'').replace('T',' ').slice(0,16))}</td>
+    <td>${esc(cname[n.customer_id]||'-')}</td>
+    <td>${esc(ty[n.type]||n.type)}</td>
+    <td><span class="badge ${st(n.status)}">${esc(n.status)}</span></td>
+    <td class="muted">${esc((n.message||'').replace(/\n/g,' ').slice(0,48))}${(n.message||'').length>48?'…':''}</td>
+  </tr>`).join("");
+  document.getElementById("notifWrap").innerHTML =
+    `<table><thead><tr><th style="width:14%">日時</th><th style="width:16%">顧客</th><th style="width:14%">種別</th><th style="width:10%">状態</th><th>本文</th></tr></thead><tbody>${nrows||'<tr><td colspan=5 class="muted">送信履歴なし</td></tr>'}</tbody></table>`;
+}
+
+// ---------- 直叩き更新（RLS下・自店のみ） ----------
+async function saveChannels(customerId){
+  const notify_line = document.getElementById("nl-"+customerId).checked;
+  const notify_sms  = document.getElementById("ns-"+customerId).checked;
+  const { error } = await sb.from("customers").update({ notify_line, notify_sms }).eq("id", customerId);
+  if(error){ alert("通知方法の保存に失敗：" + error.message); load(); }
+}
+async function savePhone(customerId, value){
+  const { error } = await sb.from("customers").update({ phone: value }).eq("id", customerId);
+  if(error){ alert("電話番号の保存に失敗：" + error.message); load(); }
+}
+async function bindUid(customerId){
+  const c = CUST_MAP[customerId]; if(!c) return;
+  const uid = prompt(`${c.name} 様のLINE userId（U で始まる文字列）を入力。\n空欄にすると連携を解除します：`, c.line_user_id||"");
+  if(uid===null) return;
+  const v = uid.trim();
+  const patch = v ? { line_user_id: v } : { line_user_id: null, linked_at: null };
+  const { error } = await sb.from("customers").update(patch).eq("id", customerId);
+  if(error){ alert("更新失敗：" + error.message); return; }
+  alert(v ? "連携を更新しました" : "連携を解除しました");
+  load();
+}
+
+// ---------- 削除（確認ポップアップ必須・RLS下で自店のみ） ----------
+async function deleteVehicle(vehicleId, plate){
+  if(!confirm(`車両「${plate||'(ナンバー未登録)'}」を削除します。\nこの操作は元に戻せません。本当に削除しますか？`)) return;
+  const { error } = await sb.from("vehicles").delete().eq("id", vehicleId);
+  if(error){ alert("車両の削除に失敗：" + error.message); return; }
+  load();
+}
+async function deleteCustomer(customerId, name){
+  if(!confirm(`顧客「${name}」を削除します。\n※この顧客が保有する車両もすべて一緒に削除されます。\nこの操作は元に戻せません。本当に削除しますか？`)) return;
+  // 念のため二段確認（顧客削除は車両も巻き込むため）
+  if(!confirm(`最終確認：「${name}」と保有車両をすべて削除します。よろしいですか？`)) return;
+  // vehicles は customers への FK が ON DELETE CASCADE のため、顧客削除で車両も自動削除される。
+  const { error } = await sb.from("customers").delete().eq("id", customerId);
+  if(error){ alert("顧客の削除に失敗：" + error.message); return; }
+  alert(`「${name}」を削除しました。`);
+  load();
+}
+
+// ---------- メッセージ送信（send-message Edge Function 経由・JWTのshop_idでテナント検証） ----------
+async function sendMessage(customerId, name){
+  const draft = (SHOP && SHOP.tpl_message) ? String(SHOP.tpl_message)
+    .replace(/\{店舗名\}/g, SHOP.name||"")
+    .replace(/\{お客様名\}/g, name||"") : "";
+  const text = prompt(`${name} 様へLINEで送るメッセージを入力してください：`, draft);
+  if(text===null) return;
+  if(!text.trim()){ alert("本文が空です。"); return; }
+  if(!confirm(`${name} 様へ以下を送信します。よろしいですか？\n\n${text}`)) return;
+  const { data, error } = await sb.functions.invoke("send-message", { body:{ customer_id: customerId, text } });
+  if(error){
+    let detail = error.message || "";
+    try{ const ctx = await error.context?.json?.(); if(ctx?.error) detail = ctx.error; }catch{}
+    alert("送信に失敗しました：" + detail); return;
+  }
+  if(data && data.ok){ alert(`${name} 様へ送信しました。`); load(); }
+  else { alert("送信に失敗しました：" + (data?.error||"unknown")); }
+}
+
+// ---------- QR連携カード発行（ブラウザ完結・link_tokenはRLSで自店のみ読める） ----------
+async function generateCard(customerId){
+  const c = CUST_MAP[customerId]; if(!c) return;
+  if(!SHOP || !SHOP.liff_id){ alert("店舗のLINE連携(LIFF)が未設定のためQRを発行できません。LOGIQAへお問い合わせください。"); return; }
+  if(!c.link_token){ alert("この顧客の連携トークンが見つかりません。"); return; }
+  if(typeof QRCode==="undefined"){ alert("QR生成ライブラリの読み込みに失敗しました。通信環境をご確認ください。"); return; }
+  const url = `https://liff.line.me/${SHOP.liff_id}?token=${c.link_token}`;
+  let qr;
+  try{ qr = await QRCode.toDataURL(url, { margin:1, width:320, errorCorrectionLevel:"M", color:{ dark:"#1a3c6e", light:"#ffffff" } }); }
+  catch(e){ alert("QRの生成に失敗しました：" + (e.message||e)); return; }
+  const win = window.open("", "_blank");
+  if(!win){ alert("ポップアップがブロックされました。ブラウザのポップアップ許可をご確認ください。"); return; }
+  win.document.write(cardHtml(c, qr, c.line_user_id ? "（連携済）" : ""));
+  win.document.close();
+}
+// A4・名刺サイズ(85×54mm)・信頼型(深紺×ゴールド)。新ウィンドウで印刷/PDF化。
+function cardHtml(c, qr, linked){
+  const shopName = esc((SHOP&&SHOP.name)||""), name = esc(c.name||"");
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8">`
+    + `<title>LINE連携カード｜${name} 様</title><style>`
+    + `@page{ size:A4; margin:12mm; } *{ box-sizing:border-box; }`
+    + `body{ font-family:"メイリオ","Meiryo",sans-serif; margin:0; background:#eef1f5; }`
+    + `.toolbar{ padding:12px 16px; background:#1a3c6e; color:#fff; display:flex; gap:12px; align-items:center; }`
+    + `.toolbar button{ font:inherit; font-size:13px; font-weight:bold; padding:7px 16px; border:none; border-radius:7px; background:#fff; color:#1a3c6e; cursor:pointer; }`
+    + `.toolbar .hint{ font-size:12px; color:#cdd8ea; }`
+    + `.sheet{ padding:14mm; }`
+    + `.card{ width:85mm;height:54mm;background:#fff;border:1px solid #dde1e7;border-radius:8px;overflow:hidden;display:flex;flex-direction:column;page-break-inside:avoid; }`
+    + `.bar{ background:#1a3c6e;color:#fff;padding:2.6mm 4mm;display:flex;align-items:center;justify-content:space-between; }`
+    + `.bar .nm{ font-size:11pt;font-weight:bold;letter-spacing:.04em; } .bar .tag{ font-size:7.5pt;color:#f0d27a; }`
+    + `.gold{ height:1mm;background:#b8860b; }`
+    + `.body{ flex:1;display:flex;padding:3mm 4mm;gap:3mm;align-items:center; } .left{ flex:1;text-align:left; }`
+    + `.lead{ font-size:10.5pt;color:#1a1a1a;font-weight:bold;line-height:1.5; } .lead b{ color:#1a3c6e; }`
+    + `.how{ font-size:7.5pt;color:#555;line-height:1.6;margin-top:2mm; } .qr{ width:24mm;height:24mm; }`
+    + `.foot{ background:#f5f6f8;border-top:1px solid #dde1e7;padding:1.6mm 4mm;font-size:8pt;color:#1a1a1a;text-align:right; }`
+    + `@media print{ body{ background:#fff; } .toolbar{ display:none; } .sheet{ padding:0; } }`
+    + `</style></head><body>`
+    + `<div class="toolbar"><button onclick="window.print()">印刷／PDF保存</button><span class="hint">「印刷」からPDF保存もできます（名刺サイズ）。</span></div>`
+    + `<div class="sheet"><div class="card">`
+    + `<div class="bar"><span class="nm">${shopName}</span><span class="tag">車検のお知らせ便</span></div>`
+    + `<div class="gold"></div>`
+    + `<div class="body"><div class="left">`
+    + `<div class="lead">車検のご案内を<br><b>LINEでお届け</b>します</div>`
+    + `<div class="how">右のQRを読み取り「友だち追加」<br>で連携完了。以後は自動でご案内。</div>`
+    + `</div><img class="qr" src="${qr}" alt="QR"></div>`
+    + `<div class="foot">${name} 様 ${linked}</div>`
+    + `</div></div></body></html>`;
+}
+
+// ---------- 車検証PDF取込（ブラウザ完結・pdf.js座標抽出→確認→RLS下でupsert） ----------
+// PDFはブラウザ内だけで解析。原本はサーバに保存しない（メタデータのみ登録）。抽出ロジックは extract.mjs を移植。
+let PDF_PARSED = [];
+const _toHalf = (s)=> s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)).replace(/－/g,"-").replace(/[　\s]/g,"");
+const _eraBase = { 令和:2018, 平成:1988, 昭和:1925, 大正:1911, 明治:1867 };
+const _eraToAD = (era,y)=> _eraBase[era]!=null ? _eraBase[era]+Number(y) : null;
+const _pad = (n)=> String(n).padStart(2,"0");
+const _normPlate = (s)=> (s||"").replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)).replace(/[　\s\-－]/g,"").trim();
+
+async function _loadItems(file){
+  const data = new Uint8Array(await file.arrayBuffer());
+  const doc = await window.pdfjsLib.getDocument({ data }).promise;
+  const page = await doc.getPage(1);
+  const content = await page.getTextContent();
+  return content.items.filter(it=>it.str && it.str.trim()!=="").map(it=>({ str:it.str, x:Math.round(it.transform[4]), y:Math.round(it.transform[5]) }));
+}
+function _makeRows(items){
+  const sorted = [...items].sort((a,b)=> b.y-a.y || a.x-b.x);
+  const rows = [];
+  for(const it of sorted){
+    let row = rows.find(r=> Math.abs(r.y-it.y)<=4);
+    if(!row){ row={ y:it.y, items:[] }; rows.push(row); }
+    row.items.push(it);
+  }
+  rows.forEach(r=> r.items.sort((a,b)=> a.x-b.x));
+  rows.sort((a,b)=> b.y-a.y);
+  return rows;
+}
+function _findLabelRow(rows,label){
+  const target = _toHalf(label);
+  for(const r of rows){ if(_toHalf(r.items.map(i=>i.str).join("")).includes(target)) return r; }
+  return null;
+}
+function _valueRowBelow(rows,labelRow){
+  let best=null;
+  for(const r of rows){ if(r.y<labelRow.y && (best===null || r.y>best.y)) best=r; }
+  return best;
+}
+function _extract(items){
+  const rows = _makeRows(items);
+  const result = {};
+  const regLabel = _findLabelRow(rows,"自動車登録番号又は車両番号");
+  if(regLabel){ const vr=_valueRowBelow(rows,regLabel); if(vr) result.登録番号 = vr.items.map(i=>_toHalf(i.str)).join(" ").replace(/\s+/g," ").trim(); }
+  const chassisLabel = _findLabelRow(rows,"車台番号");
+  if(chassisLabel){ const vr=_valueRowBelow(rows,chassisLabel); if(vr) result.車台番号 = vr.items.map(i=>_toHalf(i.str)).join("").trim(); }
+  const dateLabel = _findLabelRow(rows,"有効期間の満了する日");
+  if(dateLabel){
+    const vr=_valueRowBelow(rows,dateLabel);
+    if(vr){
+      const eraIdx=[];
+      vr.items.forEach((it,idx)=>{ if(/令\s*和|平\s*成|昭\s*和/.test(it.str)) eraIdx.push({ idx, x:it.x }); });
+      if(eraIdx.length){
+        const parseCol = (startIdx,endIdx)=>{
+          const eraStr = _toHalf(vr.items[startIdx].str).replace(/[^令和平成昭和]/g,"");
+          const nums=[];
+          for(let k=startIdx+1;k<endIdx;k++){ const m=_toHalf(vr.items[k].str).match(/\d+/); if(m) nums.push(m[0]); }
+          return { era:eraStr, nums };
+        };
+        const cols = eraIdx.map((e,i)=> parseCol(e.idx, i+1<eraIdx.length ? eraIdx[i+1].idx : vr.items.length));
+        const fmtYMD = (c)=> c.nums.length>=3 ? `${_eraToAD(c.era,c.nums[0])}-${_pad(c.nums[1])}-${_pad(c.nums[2])}` : null;
+        const fmtYM  = (c)=> c.nums.length>=2 ? `${_eraToAD(c.era,c.nums[0])}-${_pad(c.nums[1])}` : null;
+        const last = cols[cols.length-1];
+        result.車検満了日 = fmtYMD(last);
+        if(cols.length>=2) result.初度登録 = fmtYM(cols[1]) || fmtYM(cols[cols.length-2]);
+        if(cols.length>=3) result.登録年月日 = fmtYMD(cols[0]);
+      }
+    }
+  }
+  const nameLabel = _findLabelRow(rows,"所有者の氏名又は名称");
+  if(nameLabel){ const vr=_valueRowBelow(rows,nameLabel); if(vr) result.所有者氏名 = vr.items.map(i=>i.str.replace(/[　\s]/g,"")).join(" ").trim(); }
+  const addrLabel = _findLabelRow(rows,"所有者の住所");
+  if(addrLabel){ const vr=_valueRowBelow(rows,addrLabel); if(vr) result.所有者住所 = vr.items.filter(i=> i.x<420 && !/^\[/.test(i.str) && !/\]$/.test(i.str.trim())).map(i=>i.str.replace(/[　\s]/g,"")).join("").replace(/[０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)); }
+  const carLabel = _findLabelRow(rows,"車名");
+  if(carLabel){ const vr=_valueRowBelow(rows,carLabel); if(vr){ const left=vr.items.filter(i=> i.x<200 && !/^\[/.test(i.str)); result.車名 = left.map(i=>i.str.replace(/[　\s]/g,"")).join(""); } }
+  const typeLabel = _findLabelRow(rows,"型式");
+  if(typeLabel){ const vr=_valueRowBelow(rows,typeLabel); if(vr){ const left=vr.items.filter(i=> i.x<250); result.型式 = left.map(i=>_toHalf(i.str)).join(""); } }
+  const yotoRow = _findLabelRow(rows,"自動車の種別");
+  if(yotoRow){ const vr=_valueRowBelow(rows,yotoRow); if(vr){ const txt=vr.items.map(i=>i.str.replace(/[　\s]/g,"")).join("|"); if(/貨物/.test(txt)) result.用途="貨物"; else if(/乗用/.test(txt)) result.用途="乗用"; } }
+  const allText = _toHalf(items.map(i=>i.str).join(""));
+  const km = allText.match(/\[走行距離計表示値\]([\d,]+)km/);
+  if(km) result.走行距離 = km[1]+"km";
+  if(result.車検満了日){
+    const [y,m,d] = result.車検満了日.split("-").map(Number);
+    const dt = new Date(Date.UTC(y,m-1,d));
+    dt.setUTCMonth(dt.getUTCMonth()-2);
+    result.通知トリガー日 = dt.toISOString().slice(0,10);
+  }
+  return result;
+}
+
+async function parsePdfs(){
+  const input = document.getElementById("pdfInput"), msg = document.getElementById("pdfMsg");
+  const files = [...(input.files||[])];
+  if(!files.length){ msg.textContent="PDFファイルを選んでください。"; return; }
+  if(typeof window.pdfjsLib==="undefined"){ msg.textContent="PDF読取ライブラリの読み込みに失敗しました。通信環境をご確認ください。"; return; }
+  msg.textContent = "読み取り中…"; PDF_PARSED = [];
+  for(const f of files){
+    try{
+      const v = _extract(await _loadItems(f));
+      const ok = !!(v.車台番号 && v.車検満了日 && v.所有者氏名);
+      PDF_PARSED.push({ file:f.name, ok, v, msg: ok?"":"車台番号／満了日／氏名が読み取れません（電子車検証PDFかご確認ください）" });
+    }catch(e){ PDF_PARSED.push({ file:f.name, ok:false, v:{}, msg:"読み取りエラー："+(e.message||e) }); }
+  }
+  msg.textContent = `${PDF_PARSED.length}件 読み取り完了`;
+  renderImportPreview();
+}
+function renderImportPreview(){
+  const box = document.getElementById("pdfPreview");
+  if(!PDF_PARSED.length){ box.innerHTML=""; return; }
+  const rows = PDF_PARSED.map((p,i)=>{
+    const v=p.v;
+    if(!p.ok) return `<tr><td><input type="checkbox" disabled></td><td>${esc(p.file)}</td><td colspan="6" class="err">${esc(p.msg)}</td></tr>`;
+    return `<tr><td><input type="checkbox" id="imp-${i}" checked></td><td>${esc(p.file)}</td><td>${esc(v.所有者氏名||"")}</td><td>${esc(v.登録番号||"")}</td><td>${esc(v.車名||"")}</td><td>${esc(v.型式||"")}</td><td>${esc(v.車検満了日||"")}</td><td>${esc(v.通知トリガー日||"")}</td></tr>`;
+  }).join("");
+  const anyOk = PDF_PARSED.some(p=>p.ok);
+  box.innerHTML = `<table><thead><tr><th>登録</th><th>ファイル</th><th>お客様</th><th>登録番号</th><th>車名</th><th>型式</th><th>満了日</th><th>通知予定</th></tr></thead><tbody>${rows}</tbody></table>`
+    + (anyOk ? `<div class="imp-actions"><button class="btn reg" onclick="doImport()">選択した内容で登録</button><span class="muted" id="impResult"></span></div>`
+             : `<div class="imp-actions"><span class="muted">登録できる行がありません。</span></div>`);
+}
+async function doImport(){
+  if(!SHOP){ alert("店舗情報が未取得です。"); return; }
+  const targets = PDF_PARSED.map((p,i)=>({p,i})).filter(({p,i})=> p.ok && document.getElementById("imp-"+i) && document.getElementById("imp-"+i).checked);
+  if(!targets.length){ alert("登録する行を選んでください。"); return; }
+  if(!confirm(`${targets.length}件をお客様・車両として登録します。よろしいですか？\n（同じ車台番号は最新の満了日に更新されます）`)) return;
+  const result = document.getElementById("impResult"); if(result) result.textContent="登録中…";
+  let created=0, updated=0, failed=0;
+  for(const {p} of targets){
+    try{
+      const custId = await _upsertCustomer(p.v.所有者氏名, p.v.所有者住所);
+      const act = await _upsertVehicle(custId, p.v);
+      if(act==="created") created++; else updated++;
+    }catch(e){ failed++; console.error("取込失敗", p.file, e); }
+  }
+  if(result) result.textContent = `完了：新規${created}件／更新${updated}件${failed?`／失敗${failed}件`:""}`;
+  await load();
+}
+async function _upsertCustomer(name, address){
+  const addr = address||"";
+  const { data: found, error: e1 } = await sb.from("customers").select("id").eq("name",name).eq("address",addr).limit(1);
+  if(e1) throw e1;
+  if(found && found.length) return found[0].id;
+  const { data: created, error: e2 } = await sb.from("customers").insert({ shop_id: SHOP.id, name, address: address||null }).select("id");
+  if(e2) throw e2;
+  return created[0].id;
+}
+async function _upsertVehicle(customerId, v){
+  const payload = { shop_id: SHOP.id, customer_id: customerId, plate: v.登録番号, plate_norm: _normPlate(v.登録番号), chassis: v.車台番号, maker: v.車名, model: v.型式, use_type: v.用途||null, mileage: v.走行距離||null, shaken_expiry: v.車検満了日, notify_date: v.通知トリガー日 };
+  const { data: found, error: e1 } = await sb.from("vehicles").select("id").eq("chassis", v.車台番号).limit(1);
+  if(e1) throw e1;
+  if(found && found.length){
+    const { error: e2 } = await sb.from("vehicles").update(payload).eq("id", found[0].id);
+    if(e2) throw e2;
+    return "updated";
+  }
+  const { error: e3 } = await sb.from("vehicles").insert(payload);
+  if(e3) throw e3;
+  return "created";
+}
+
+// ---------- テンプレート ----------
+const TPL_META = [
+  { key:"tpl_reminder",    label:"車検リマインド（2か月前）", ch:"満了2か月前のLINE自動配信で使用" },
+  { key:"tpl_reminder_2w", label:"車検リマインド（2週間前）", ch:"満了2週間前の直前再通知" },
+  { key:"tpl_message",     label:"任意メッセージ",           ch:"メッセージ送信の初期文" },
+];
+const TPL_SAMPLE = { "店舗名":"サンプル店", "お客様名":"田中 一郎", "ナンバー":"金沢 500 あ 12-34", "車種":"トヨタ ノア", "満了日":"2026-07-15", "残日数":"35" };
+function fillTpl(tpl, ctx){ return String(tpl||"").replace(/\{(店舗名|お客様名|ナンバー|車種|満了日|残日数)\}/g,(_,k)=> ctx[k]!=null?ctx[k]:""); }
+function tplPreview(key){
+  const ta = document.getElementById("ta-"+key), box = document.getElementById("pv-"+key);
+  if(!ta||!box) return;
+  const sample = { ...TPL_SAMPLE, "店舗名": (SHOP&&SHOP.name) || TPL_SAMPLE["店舗名"] };
+  box.innerHTML = '<span class="pl">送信プレビュー（サンプル値）</span>' + esc(fillTpl(ta.value, sample));
+}
+function loadTemplates(){
+  TPL = SHOP || {};
+  const sf = document.getElementById("smsFromInput"); if(sf) sf.value = SHOP.sms_from || "";
+  document.getElementById("tplWrap").innerHTML = TPL_META.map(m=>`
+    <div class="tpl-card">
+      <h3>${m.label}<span class="ch">${esc(m.ch)}</span></h3>
+      <textarea id="ta-${m.key}" oninput="tplPreview('${m.key}')">${esc(SHOP[m.key]||"")}</textarea>
+      <div class="tpl-prev" id="pv-${m.key}"></div>
+      <div class="tpl-row">
+        <button class="btn save" onclick="saveTpl('${m.key}')">この文面を保存</button>
+        <button class="btn mini" onclick="resetTpl('${m.key}')">初期文に戻す</button>
+        <span class="st" id="st-${m.key}"></span>
+      </div>
+    </div>`).join("");
+  TPL_META.forEach(m=>tplPreview(m.key));
+}
+async function saveTpl(key){
+  const ta = document.getElementById("ta-"+key), st = document.getElementById("st-"+key);
+  st.className="st"; st.textContent="保存中…";
+  const value = ta.value.trim() ? ta.value : null; // 空欄保存で初期文に戻す（NULL）
+  const { error } = await sb.from("shops").update({ [key]: value }).eq("id", SHOP.id);
+  if(error){ st.textContent="保存失敗：" + error.message; return; }
+  SHOP[key] = value;
+  st.className="st ok"; st.textContent = value ? "保存しました" : "初期文に戻しました";
+  setTimeout(()=>{ st.textContent=""; }, 2500);
+}
+async function resetTpl(key){
+  if(!confirm("この文面を初期文に戻します。よろしいですか？")) return;
+  document.getElementById("ta-"+key).value=""; await saveTpl(key);
+}
+async function saveSmsFrom(){
+  const el = document.getElementById("smsFromInput"), msg = document.getElementById("smsFromMsg");
+  msg.textContent = "保存中…";
+  const { error } = await sb.from("shops").update({ sms_from: el.value || null }).eq("id", SHOP.id);
+  if(error){ msg.textContent = "保存失敗：" + error.message; return; }
+  SHOP.sms_from = el.value || null;
+  msg.textContent = "保存しました"; setTimeout(()=>{ msg.textContent=""; }, 2500);
+}
+function insertKey(tok){
+  const el = document.activeElement;
+  if(el && el.tagName==="TEXTAREA" && el.id.startsWith("ta-")){
+    const s=el.selectionStart, e=el.selectionEnd;
+    el.value = el.value.slice(0,s)+tok+el.value.slice(e);
+    el.selectionStart=el.selectionEnd=s+tok.length; el.focus();
+    tplPreview(el.id.slice(3));
+  }
+}
+
+boot();
+</script>
+</body></html>
