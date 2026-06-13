@@ -46,6 +46,8 @@
   .btn.del{ border-color:var(--red); color:var(--red); } .btn.del:hover{ background:var(--red); color:#fff; }
   .veh .vdel{ float:right; font-size:10.5px; padding:1px 7px; border:1px solid #e0a9a2; color:#c0392b; background:#fff; border-radius:5px; cursor:pointer; }
   .veh .vdel:hover{ background:var(--red); color:#fff; border-color:var(--red); }
+  .veh .vpdf{ float:right; margin-right:6px; font-size:10.5px; padding:1px 7px; border:1px solid #9fb6d6; color:#2b5fa3; background:#fff; border-radius:5px; cursor:pointer; }
+  .veh .vpdf:hover{ background:#2b5fa3; color:#fff; border-color:#2b5fa3; }
   .btn.logout{ font-size:12px; border-color:#9fb1cc; color:#fff; background:transparent; }
   .btn.logout:hover{ background:#fff; color:var(--navy); }
   footer{ text-align:center; color:#9aa; font-size:11px; padding:20px; }
@@ -89,6 +91,16 @@
   .imp-actions{ margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   .imp-actions .btn.reg{ border-color:var(--line); color:#1a7a43; font-size:13px; padding:7px 16px; }
   .imp-actions .btn.reg:hover{ background:var(--line); color:#fff; }
+  .custtools{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:6px 0 12px; }
+  .custtools input[type=search]{ flex:1; min-width:200px; padding:8px 12px; border:1px solid #ccd; border-radius:8px; font-size:14px; }
+  .custtools select{ padding:8px 10px; border:1px solid #ccd; border-radius:8px; font-size:14px; background:#fff; cursor:pointer; }
+  .custtools .cnt{ font-size:12px; color:#9aa; white-space:nowrap; }
+  .pager{ display:flex; gap:6px; align-items:center; justify-content:center; flex-wrap:wrap; margin:14px 0 4px; }
+  .pager button{ min-width:34px; padding:6px 10px; border:1px solid var(--navy); background:#fff; color:var(--navy); border-radius:6px; cursor:pointer; font-size:13px; }
+  .pager button:hover:not(:disabled){ background:var(--navy); color:#fff; }
+  .pager button:disabled{ opacity:.4; cursor:default; }
+  .pager button.cur{ background:var(--navy); color:#fff; font-weight:bold; cursor:default; }
+  .pager .gap{ color:#9aa; padding:0 2px; }
 </style>
 </head><body>
 
@@ -124,12 +136,22 @@
   <section id="view-customers">
     <div class="kpis" id="kpis"></div>
     <h2>顧客一覧（LINE連携状況・保有車両）</h2>
+    <div class="custtools">
+      <input id="custSearch" type="search" placeholder="顧客名・電話で検索" oninput="onSearchInput()">
+      <select id="custSort" onchange="onSortChange()">
+        <option value="name">名前順（あいうえお）</option>
+        <option value="new">新着順（登録が新しい）</option>
+        <option value="updated">更新日順（最近更新）</option>
+      </select>
+      <span class="cnt" id="custCnt"></span>
+    </div>
     <div id="custWrap"><div class="loading">読み込み中…</div></div>
+    <div class="pager" id="custPager"></div>
     <h2>車検証PDFを取り込む</h2>
     <div class="imp">
       <div class="imp-head">
         電子車検証（A4「自動車検査証記録事項」）のPDFを選ぶと、お客様・車両・車検満了日を自動で読み取ります。複数選択可。
-        <span class="muted">※読み取りはこのブラウザ内だけで行われます（PDFは外部に送信・保存されません）。内容を確認してから登録できます。</span>
+        <span class="muted">※読み取りはこのブラウザ内で行います。内容を確認してから登録できます。登録するとPDF原本は非公開ストレージに安全に保管され、後から「PDFを見る」で閲覧できます（同じ車両は最新1件のみ保持）。</span>
       </div>
       <div class="imp-row">
         <input type="file" id="pdfInput" accept="application/pdf" multiple>
@@ -232,28 +254,107 @@ function show(which){
 }
 
 // ---------- 顧客・車両・履歴 ----------
-async function load(){
-  document.getElementById("custWrap").innerHTML = '<div class="loading">読み込み中…</div>';
-  const [{ data:customers=[] }, { data:vehicles=[] }, { data:notifications=[] }] = await Promise.all([
-    sb.from("customers").select("id,name,line_user_id,linked_at,notify_line,notify_sms,phone,link_token").order("name"),
-    sb.from("vehicles").select("id,customer_id,plate,maker,shaken_expiry,notify_date,pdf_path"),
-    sb.from("notifications").select("customer_id,type,status,message,sent_at").order("sent_at",{ascending:false}).limit(80),
-  ]);
-  CUST_MAP = Object.fromEntries(customers.map(c=>[c.id,c]));
-  const byCust = {};
-  for(const v of vehicles){ (byCust[v.customer_id] ||= []).push(v); }
+// 一覧はサーバー側で検索・ソート・ページングする（顧客が膨大でも軽い）。
+const PAGE_SIZE = 20;
+let CUST_Q = "", CUST_SORT = "name", CUST_PAGE = 0, CUST_TOTAL = 0, SEARCH_TIMER = null;
 
-  // KPI
-  const total = customers.length;
-  const linked = customers.filter(c=>c.line_user_id).length;
+// 操作後の再描画（互換）：KPI・一覧・履歴をまとめて更新
+async function load(){
+  await Promise.all([ loadKpis(), loadCustomers() ]);
+  await loadNotifications();
+}
+
+// 検索ボックス（入力のたびに叩かないよう300msデバウンス）
+function onSearchInput(){
+  clearTimeout(SEARCH_TIMER);
+  SEARCH_TIMER = setTimeout(()=>{
+    CUST_Q = document.getElementById("custSearch").value.trim();
+    CUST_PAGE = 0; loadCustomers();
+  }, 300);
+}
+function onSortChange(){ CUST_SORT = document.getElementById("custSort").value; CUST_PAGE = 0; loadCustomers(); }
+function gotoPage(p){ if(p<0) return; CUST_PAGE = p; loadCustomers(); }
+
+// KPIは店舗全体の集計（件数だけ取得＝head:trueで軽い）
+async function loadKpis(){
+  const today = new Date(); const iso = (d)=>d.toISOString().slice(0,10);
+  const todayStr = iso(today), d60 = iso(new Date(today.getTime()+60*86400000));
+  const h = { count:"exact", head:true };
+  const [tot, lnk, veh, soon] = await Promise.all([
+    sb.from("customers").select("id", h),
+    sb.from("customers").select("id", h).not("line_user_id","is",null),
+    sb.from("vehicles").select("id", h),
+    sb.from("vehicles").select("id", h).gte("shaken_expiry", todayStr).lte("shaken_expiry", d60),
+  ]);
+  const total = tot.count||0, linked = lnk.count||0, vehCnt = veh.count||0, soonCnt = soon.count||0;
   const rate = total ? Math.round(linked/total*100) : 0;
-  const soon = vehicles.filter(v=>{ const d=daysUntil(v.shaken_expiry); return d!==null && d>=0 && d<=60; }).length;
   document.getElementById("kpis").innerHTML = `
     <div class="kpi"><div class="lbl">登録顧客</div><div class="num">${total}</div></div>
     <div class="kpi"><div class="lbl">LINE連携済</div><div class="num green">${linked}</div><div class="note">連携率 ${rate}%</div></div>
     <div class="kpi"><div class="lbl">未連携</div><div class="num red">${total-linked}</div><div class="note">通知が届かない顧客</div></div>
-    <div class="kpi"><div class="lbl">60日以内に車検満了</div><div class="num gold">${soon}</div><div class="note">要フォロー</div></div>
-    <div class="kpi"><div class="lbl">登録車両</div><div class="num">${vehicles.length}</div></div>`;
+    <div class="kpi"><div class="lbl">60日以内に車検満了</div><div class="num gold">${soonCnt}</div><div class="note">要フォロー</div></div>
+    <div class="kpi"><div class="lbl">登録車両</div><div class="num">${vehCnt}</div></div>`;
+}
+
+// ページャ描画（前後＋現在ページ周辺の番号）
+function renderPager(){
+  const el = document.getElementById("custPager"); if(!el) return;
+  const pages = Math.max(1, Math.ceil(CUST_TOTAL / PAGE_SIZE));
+  if(CUST_TOTAL <= PAGE_SIZE){ el.innerHTML = ""; return; }
+  const cur = CUST_PAGE;
+  let html = `<button ${cur<=0?'disabled':''} onclick="gotoPage(${cur-1})">‹ 前へ</button>`;
+  const nums = [];
+  for(let i=0;i<pages;i++){ if(i===0||i===pages-1||Math.abs(i-cur)<=1) nums.push(i); }
+  let prev = -1;
+  for(const i of nums){
+    if(i-prev>1) html += `<span class="gap">…</span>`;
+    html += `<button class="${i===cur?'cur':''}" ${i===cur?'':''} onclick="gotoPage(${i})">${i+1}</button>`;
+    prev = i;
+  }
+  html += `<button ${cur>=pages-1?'disabled':''} onclick="gotoPage(${cur+1})">次へ ›</button>`;
+  el.innerHTML = html;
+}
+
+// 顧客一覧（検索・ソート・ページング適用）
+async function loadCustomers(){
+  const wrap = document.getElementById("custWrap");
+  wrap.innerHTML = '<div class="loading">読み込み中…</div>';
+  const cols = "id,name,line_user_id,linked_at,notify_line,notify_sms,phone,link_token";
+  const orderOf = (sort)=> sort==="new" ? ["created_at",false] : sort==="updated" ? ["updated_at",false] : ["name",true];
+  const run = async (sort)=>{
+    let q = sb.from("customers").select(cols, { count:"exact" });
+    if(CUST_Q){ const t = CUST_Q.replace(/[%,]/g," "); q = q.or(`name.ilike.%${t}%,phone.ilike.%${t}%`); }
+    const [col, asc] = orderOf(sort);
+    q = q.order(col, { ascending: asc }).range(CUST_PAGE*PAGE_SIZE, CUST_PAGE*PAGE_SIZE + PAGE_SIZE - 1);
+    return await q;
+  };
+  let res = await run(CUST_SORT);
+  // updated_at 未追加のDBでも壊れないよう、更新日順が失敗したら新着順で代替
+  if(res.error && CUST_SORT==="updated" && /updated_at/.test(res.error.message||"")){
+    res = await run("new");
+    const note = document.getElementById("custCnt"); if(note) note.textContent = "更新日順は準備中（DB更新後に有効）";
+  }
+  const { data:customers=[], count, error } = res;
+  if(error){ wrap.innerHTML = '<div class="loading">顧客の取得に失敗：'+esc(error.message)+'</div>'; return; }
+  CUST_TOTAL = count||0;
+  CUST_MAP = Object.fromEntries(customers.map(c=>[c.id,c]));
+
+  // 表示中の顧客が持つ車両だけ取得
+  const ids = customers.map(c=>c.id);
+  let vehicles = [];
+  if(ids.length){
+    const { data } = await sb.from("vehicles").select("id,customer_id,plate,maker,shaken_expiry,notify_date,pdf_path").in("customer_id", ids);
+    vehicles = data||[];
+  }
+  const byCust = {};
+  for(const v of vehicles){ (byCust[v.customer_id] ||= []).push(v); }
+
+  // 件数表示
+  const cntEl = document.getElementById("custCnt");
+  if(cntEl){
+    if(CUST_TOTAL===0) cntEl.textContent = CUST_Q ? "該当する顧客はいません" : "顧客なし";
+    else { const s = CUST_PAGE*PAGE_SIZE+1, e = Math.min(CUST_PAGE*PAGE_SIZE+PAGE_SIZE, CUST_TOTAL); cntEl.textContent = `${s}–${e} / 全${CUST_TOTAL}件`; }
+  }
 
   // 顧客テーブル
   const rows = customers.map(c=>{
@@ -262,7 +363,10 @@ async function load(){
       const d = daysUntil(v.shaken_expiry);
       const cls = d!==null && d>=0 && d<=60 ? "soon" : (d!==null && d<0 ? "exp" : "");
       const dd = d===null ? "" : (d<0 ? `（満了済 ${-d}日前）` : `（あと${d}日）`);
-      return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button><span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${esc(v.shaken_expiry||'-')} ${dd}　通知予定:${esc(v.notify_date||'-')}</div>`;
+      const pdfBtn = v.pdf_path
+        ? `<button class="vpdf" title="車検証PDFを表示" onclick="viewPdf('${esc(v.pdf_path)}')">PDFを見る</button>`
+        : "";
+      return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button>${pdfBtn}<span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${esc(v.shaken_expiry||'-')} ${dd}　通知予定:${esc(v.notify_date||'-')}</div>`;
     }).join("") || '<span class="muted">車両なし</span>';
     const badge = isLinked ? `<span class="badge b-linked">連携済</span>` : `<span class="badge b-unlinked">未連携</span>`;
     const lineOn = c.notify_line !== false, smsOn = !!c.notify_sms;
@@ -284,9 +388,17 @@ async function load(){
   }).join("");
   document.getElementById("custWrap").innerHTML =
     `<table><thead><tr><th style="width:20%">顧客名</th><th style="width:14%">LINE連携</th><th>保有車両 / 車検満了</th><th style="width:22%">操作</th></tr></thead><tbody>${rows||'<tr><td colspan=4 class="muted">顧客なし</td></tr>'}</tbody></table>`;
+  renderPager();
+}
 
-  // 送信履歴
-  const cname = Object.fromEntries(customers.map(c=>[c.id,c.name]));
+// 送信履歴（直近80件・一覧のページングとは独立）
+async function loadNotifications(){
+  const { data:notifications=[] } = await sb.from("notifications")
+    .select("customer_id,type,status,message,sent_at").order("sent_at",{ascending:false}).limit(80);
+  // 履歴に登場する顧客の名前だけ引く（最大80人分）
+  const cids = [...new Set(notifications.map(n=>n.customer_id).filter(Boolean))];
+  const cname = {};
+  if(cids.length){ const { data } = await sb.from("customers").select("id,name").in("id", cids); for(const c of (data||[])) cname[c.id] = c.name; }
   const st = (s)=>{ const m={sent:"b-sent",mock_sent:"b-sent",failed:"b-failed"}; if(m[s])return m[s]; return "b-skip"; };
   const ty = {shaken_reminder:"車検リマインド",shaken_reminder_2w:"車検リマインド(2週前)",year_end:"年末挨拶",broadcast:"一斉配信"};
   const nrows = notifications.map(n=>`<tr>
@@ -323,11 +435,21 @@ async function bindUid(customerId){
   load();
 }
 
+// ---------- 車検証PDF閲覧（非公開Storage／短期署名URL） ----------
+async function viewPdf(path){
+  // 60秒で失効する署名URLを発行して別タブで開く（RLSで自店フォルダのみ許可）
+  const { data, error } = await sb.storage.from("vehicle-docs").createSignedUrl(path, 60);
+  if(error || !data || !data.signedUrl){ alert("PDFを開けませんでした：" + ((error&&error.message)||"署名URLの発行に失敗")); return; }
+  window.open(data.signedUrl, "_blank", "noopener");
+}
+
 // ---------- 削除（確認ポップアップ必須・RLS下で自店のみ） ----------
 async function deleteVehicle(vehicleId, plate){
   if(!confirm(`車両「${plate||'(ナンバー未登録)'}」を削除します。\nこの操作は元に戻せません。本当に削除しますか？`)) return;
   const { error } = await sb.from("vehicles").delete().eq("id", vehicleId);
   if(error){ alert("車両の削除に失敗：" + error.message); return; }
+  // PDF原本も破棄（孤児ファイル防止。失敗しても車両削除は完了済みなので致命ではない）
+  if(SHOP){ try{ await sb.storage.from("vehicle-docs").remove([`${SHOP.id}/${vehicleId}.pdf`]); }catch(_){} }
   load();
 }
 async function deleteCustomer(customerId, name){
@@ -508,8 +630,8 @@ async function parsePdfs(){
     try{
       const v = _extract(await _loadItems(f));
       const ok = !!(v.車台番号 && v.車検満了日 && v.所有者氏名);
-      PDF_PARSED.push({ file:f.name, ok, v, msg: ok?"":"車台番号／満了日／氏名が読み取れません（電子車検証PDFかご確認ください）" });
-    }catch(e){ PDF_PARSED.push({ file:f.name, ok:false, v:{}, msg:"読み取りエラー："+(e.message||e) }); }
+      PDF_PARSED.push({ file:f.name, raw:f, ok, v, msg: ok?"":"車台番号／満了日／氏名が読み取れません（電子車検証PDFかご確認ください）" });
+    }catch(e){ PDF_PARSED.push({ file:f.name, raw:f, ok:false, v:{}, msg:"読み取りエラー："+(e.message||e) }); }
   }
   msg.textContent = `${PDF_PARSED.length}件 読み取り完了`;
   renderImportPreview();
@@ -533,15 +655,20 @@ async function doImport(){
   if(!targets.length){ alert("登録する行を選んでください。"); return; }
   if(!confirm(`${targets.length}件をお客様・車両として登録します。よろしいですか？\n（同じ車台番号は最新の満了日に更新されます）`)) return;
   const result = document.getElementById("impResult"); if(result) result.textContent="登録中…";
-  let created=0, updated=0, failed=0;
+  let created=0, updated=0, failed=0, pdfFail=0;
   for(const {p} of targets){
     try{
       const custId = await _upsertCustomer(p.v.所有者氏名, p.v.所有者住所);
-      const act = await _upsertVehicle(custId, p.v);
-      if(act==="created") created++; else updated++;
+      const r = await _upsertVehicle(custId, p.v);
+      if(r.action==="created") created++; else updated++;
+      // PDF原本を保管（失敗しても登録自体は成功扱い＝閲覧だけ後回し）
+      if(p.raw){
+        try{ await _storeVehiclePdf(r.id, p.raw); }
+        catch(pe){ pdfFail++; console.error("PDF保管失敗", p.file, pe); }
+      }
     }catch(e){ failed++; console.error("取込失敗", p.file, e); }
   }
-  if(result) result.textContent = `完了：新規${created}件／更新${updated}件${failed?`／失敗${failed}件`:""}`;
+  if(result) result.textContent = `完了：新規${created}件／更新${updated}件${failed?`／失敗${failed}件`:""}${pdfFail?`／PDF保管失敗${pdfFail}件`:""}`;
   await load();
 }
 async function _upsertCustomer(name, address){
@@ -560,11 +687,22 @@ async function _upsertVehicle(customerId, v){
   if(found && found.length){
     const { error: e2 } = await sb.from("vehicles").update(payload).eq("id", found[0].id);
     if(e2) throw e2;
-    return "updated";
+    return { id: found[0].id, action: "updated" };
   }
-  const { error: e3 } = await sb.from("vehicles").insert(payload);
+  const { data: ins, error: e3 } = await sb.from("vehicles").insert(payload).select("id");
   if(e3) throw e3;
-  return "created";
+  return { id: ins[0].id, action: "created" };
+}
+
+// 車検証PDF原本を Storage(vehicle-docs) に保存し、pdf_path を vehicles に記録する。
+//   保存パス：<shop_id>/<vehicle_id>.pdf （同一車両は upsert で上書き＝最新1件のみ保持）
+async function _storeVehiclePdf(vehicleId, file){
+  const path = `${SHOP.id}/${vehicleId}.pdf`;
+  const { error: ue } = await sb.storage.from("vehicle-docs")
+    .upload(path, file, { upsert:true, contentType:"application/pdf" });
+  if(ue) throw ue;
+  const { error: pe } = await sb.from("vehicles").update({ pdf_path: path }).eq("id", vehicleId);
+  if(pe) throw pe;
 }
 
 // ---------- テンプレート ----------
