@@ -252,9 +252,11 @@
       <div class="lbtns">
         <button class="btn" id="lf-test" onclick="testLineConn()">接続テスト</button>
         <button class="btn" id="lf-save" onclick="saveLineCreds()">保存する</button>
+        <button class="btn" id="lf-clear" onclick="clearLineDraft()" style="background:#fff;color:#8a5a00;border:1px solid #f0d8a8">下書きを消す</button>
         <span class="lmsg" id="lf-msg"></span>
       </div>
       <div class="lhint" style="margin-top:6px">「接続テスト」を押すと、トークンが正しいかをその場で確認できます（メッセージは送信されません）。問題なければ「保存する」を押してください。</div>
+      <div class="lhint" style="margin-top:4px">入力した内容はこの端末に<b>自動で一時保存</b>されます。途中で閉じても、次に開いたとき続きから入力できます。「保存する」が完了すると一時保存は消えます。<b>共用のパソコンを使った場合は、作業後に「下書きを消す」を押してください。</b></div>
     </div>
 
     <!-- ===== 手順書モーダル ===== -->
@@ -907,9 +909,49 @@ function openLineGuide(){ document.getElementById("lineGuide").classList.add("op
 function closeLineGuide(){ document.getElementById("lineGuide").classList.remove("open"); }
 document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeLineGuide(); });
 
+// 入力途中の下書きをこの端末（localStorage）に一時保存する。
+// 保存成功時／手動「下書きを消す」でクリア。秘匿値を残さないため自動消去を徹底。
+function lineDraftKey(){ return "linedraft_" + (SHOP && SHOP.id ? SHOP.id : "x"); }
+function saveLineDraft(){
+  const d = {
+    t: (document.getElementById("lf-token")||{}).value || "",
+    s: (document.getElementById("lf-secret")||{}).value || "",
+    l: (document.getElementById("lf-liff")||{}).value || ""
+  };
+  try{
+    if(!d.t && !d.s && !d.l) localStorage.removeItem(lineDraftKey());
+    else localStorage.setItem(lineDraftKey(), JSON.stringify(d));
+  }catch(e){}
+}
+function restoreLineDraft(){
+  let d; try{ d = JSON.parse(localStorage.getItem(lineDraftKey())||"null"); }catch(e){ d=null; }
+  if(!d) return false;
+  if(d.t) document.getElementById("lf-token").value = d.t;
+  if(d.s) document.getElementById("lf-secret").value = d.s;
+  if(d.l) document.getElementById("lf-liff").value = d.l;
+  return !!(d.t || d.s || d.l);
+}
+function clearLineDraft(){
+  try{ localStorage.removeItem(lineDraftKey()); }catch(e){}
+  ["lf-token","lf-secret","lf-liff"].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=""; });
+  const msg = document.getElementById("lf-msg");
+  if(msg){ msg.className="lmsg"; msg.textContent="一時保存した内容を消しました。"; }
+}
+let lineDraftBound = false;
+function bindLineDraft(){
+  if(lineDraftBound) return;
+  ["lf-token","lf-secret","lf-liff"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener("input", saveLineDraft);
+  });
+  lineDraftBound = true;
+}
+
 function renderLineView(){
   const stat = document.getElementById("lineStatus");
   if(!stat) return;
+  bindLineDraft();
+  const restored = restoreLineDraft();
   if(SHOP && SHOP.liff_id){
     stat.className = "lstat set";
     stat.textContent = "現在の連携状況：設定済み（LIFF ID 登録あり）。値を変更する場合のみ、下に貼り付けて保存してください。";
@@ -918,7 +960,10 @@ function renderLineView(){
     stat.textContent = "現在の連携状況：未設定。下の3つを貼り付けて保存すると、LINE配信が使えるようになります。";
   }
   const msg = document.getElementById("lf-msg");
-  if(msg){ msg.className="lmsg"; msg.textContent=""; }
+  if(msg){
+    if(restored){ msg.className="lmsg"; msg.textContent="前回入力途中の内容を復元しました。続きから入力できます。"; }
+    else { msg.className="lmsg"; msg.textContent=""; }
+  }
 }
 
 async function testLineConn(){
@@ -963,9 +1008,11 @@ async function saveLineCreds(){
   btn.disabled=false;
   if(error){ msg.className="lmsg ng"; msg.textContent="保存に失敗しました："+esc(error.message); return; }
   if(liff) SHOP.liff_id = liff;
-  // 秘匿値は画面に残さない（書き込み専用）
+  // 秘匿値は画面に残さない（書き込み専用）。下書きもこの端末から消す。
   document.getElementById("lf-token").value = "";
   document.getElementById("lf-secret").value = "";
+  document.getElementById("lf-liff").value = "";
+  try{ localStorage.removeItem(lineDraftKey()); }catch(e){}
   msg.className="lmsg ok"; msg.textContent="保存しました。LINE配信の準備が整いました。";
   // ステータス表示・上部バッジを更新
   renderLineView();
