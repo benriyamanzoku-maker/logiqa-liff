@@ -117,6 +117,23 @@
   .lstat{ font-size:13px; padding:8px 12px; border-radius:6px; margin-bottom:8px; }
   .lstat.set{ background:#eafaf0; border:1px solid #b6e6c8; color:#0a8a43; }
   .lstat.unset{ background:#fff7e6; border:1px solid #f0d8a8; color:#8a5a00; }
+  .guidebtn{ display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:8px 16px; background:#06c755; color:#fff; border:none; border-radius:6px; font-size:14px; font-weight:bold; cursor:pointer; }
+  .guidebtn:hover{ background:#05a948; }
+  .modal-ov{ display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; padding:24px; overflow-y:auto; }
+  .modal-ov.open{ display:flex; align-items:flex-start; justify-content:center; }
+  .modal{ background:#fff; border-radius:12px; max-width:680px; width:100%; margin:auto; box-shadow:0 8px 40px rgba(0,0,0,.3); }
+  .modal-head{ display:flex; align-items:center; justify-content:space-between; padding:18px 24px; background:var(--navy); color:#fff; border-radius:12px 12px 0 0; position:sticky; top:0; }
+  .modal-head h2{ font-size:18px; margin:0; color:#fff; background:none; padding:0; }
+  .modal-x{ background:none; border:none; color:#fff; font-size:26px; line-height:1; cursor:pointer; padding:0 4px; }
+  .modal-body{ padding:20px 26px 28px; }
+  .gstep{ border:1px solid #d6e0ec; border-radius:10px; padding:0 18px 14px; margin:16px 0; }
+  .gstep-h{ display:flex; align-items:center; gap:10px; margin:0 -18px 12px; padding:11px 18px; background:#eef7ff; border-bottom:1px solid #d6e0ec; border-radius:10px 10px 0 0; }
+  .gstep-h .gnum{ display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; background:var(--navy); color:#fff; border-radius:50%; font-weight:bold; font-size:15px; flex:none; }
+  .gstep-h b{ color:var(--navy); font-size:15px; }
+  .gstep ol{ padding-left:20px; margin:8px 0; } .gstep li{ margin:6px 0; font-size:14px; line-height:1.7; }
+  .gstep .gurl{ background:#eef1f5; padding:2px 6px; border-radius:4px; font-size:12px; color:#a3306b; word-break:break-all; }
+  .glead{ background:#f6f8fb; border-left:4px solid var(--accent); padding:12px 16px; border-radius:0 6px 6px 0; font-size:14px; margin:0 0 8px; }
+  .gwarn{ background:#fff7e6; border:1px solid #f0d8a8; border-radius:8px; padding:12px 16px; margin:14px 0 0; font-size:13px; color:#8a5a00; }
 </style>
 </head><body>
 
@@ -208,6 +225,7 @@
       お店のLINE公式アカウントと「車屋さんのお知らせ便」をつなぐ設定です。
       LINEの管理画面でコピーした<b>3つの値</b>を、下の欄に貼り付けて保存してください。
       <span class="muted">※貼り付けた値は安全に保管され、保存後はこの画面から再表示されません（書き込み専用）。設定方法が分からない場合は株式会社LOGIQAが代行します。</span>
+      <div><button type="button" class="guidebtn" onclick="openLineGuide()">📖 3つの値の取得手順を開く</button></div>
     </div>
 
     <div class="lineform">
@@ -237,6 +255,60 @@
         <span class="lmsg" id="lf-msg"></span>
       </div>
       <div class="lhint" style="margin-top:6px">「接続テスト」を押すと、トークンが正しいかをその場で確認できます（メッセージは送信されません）。問題なければ「保存する」を押してください。</div>
+    </div>
+
+    <!-- ===== 手順書モーダル ===== -->
+    <div class="modal-ov" id="lineGuide" onclick="if(event.target===this)closeLineGuide()">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lineGuideTitle">
+        <div class="modal-head">
+          <h2 id="lineGuideTitle">LINE連携｜3つの値の取得手順</h2>
+          <button type="button" class="modal-x" onclick="closeLineGuide()" aria-label="閉じる">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="glead">お店のLINE公式アカウントの管理画面から、下の<b>3つの値</b>をコピーして、設定画面の同じ番号の欄に貼り付けてください。所要時間はおよそ10分です。</p>
+
+          <div class="gstep">
+            <div class="gstep-h"><span class="gnum">1</span><b>チャネルアクセストークン（長期）</b></div>
+            <ol>
+              <li>パソコンで <span class="gurl">https://developers.line.biz/console/</span> を開き、お店のアカウントでログインします。</li>
+              <li>お店のチャネル（プロバイダー内の「Messaging API」のもの）を選びます。</li>
+              <li>上部の「<b>Messaging API設定</b>」タブを開きます。</li>
+              <li>下の方にある「<b>チャネルアクセストークン（長期）</b>」の〔発行〕ボタンを押します。</li>
+              <li>表示された長い文字列を〔コピー〕し、設定画面の<b>①の欄</b>に貼り付けます。</li>
+            </ol>
+          </div>
+
+          <div class="gstep">
+            <div class="gstep-h"><span class="gnum">2</span><b>Channel secret（チャネルシークレット）</b></div>
+            <ol>
+              <li><span class="gurl">https://manager.line.biz/</span> を開き、お店のアカウントを選びます。</li>
+              <li>右上の「<b>設定</b>」→ 左メニューの「<b>Messaging API</b>」を開きます。</li>
+              <li>「<b>Channel secret</b>」の値を〔コピー〕し、設定画面の<b>②の欄</b>に貼り付けます。</li>
+            </ol>
+          </div>
+
+          <div class="gstep">
+            <div class="gstep-h"><span class="gnum">3</span><b>LIFF ID</b></div>
+            <ol>
+              <li>手順1と同じ <span class="gurl">https://developers.line.biz/console/</span> のチャネル画面に戻ります。</li>
+              <li>上部の「<b>LIFF</b>」タブを開き、〔追加〕を押します。</li>
+              <li>次のとおり入力します。
+                <ul>
+                  <li>エンドポイントURL：<span class="gurl">https://benriyamanzoku-maker.github.io/logiqa-liff/</span></li>
+                  <li>サイズ：<b>Full</b></li>
+                  <li>スコープ：<b>profile</b> と <b>openid</b> にチェック</li>
+                </ul>
+              </li>
+              <li>〔追加〕すると「<b>LIFF ID</b>」（例：2010315487-xxxxxxxx）が表示されます。これを〔コピー〕し、設定画面の<b>③の欄</b>に貼り付けます。</li>
+            </ol>
+          </div>
+
+          <div class="gwarn">
+            ①チャネルアクセストークンと②Channel secretは「銀行の暗証番号」と同じ大切な鍵です。第三者に教えたり、メールやSNSに貼ったりしないでください。この画面で保存したあとは、安全のため再表示されません。<br>
+            ご不明な点は株式会社LOGIQA（info@logiqa-inc.com）までご連絡ください。代行も承ります。
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </div>
@@ -831,6 +903,10 @@ function insertKey(tok){
 }
 
 // ---------- LINE連携設定（セルフサービス・ウィザード） ----------
+function openLineGuide(){ document.getElementById("lineGuide").classList.add("open"); }
+function closeLineGuide(){ document.getElementById("lineGuide").classList.remove("open"); }
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") closeLineGuide(); });
+
 function renderLineView(){
   const stat = document.getElementById("lineStatus");
   if(!stat) return;
