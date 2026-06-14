@@ -104,6 +104,19 @@
   .pager button:disabled{ opacity:.4; cursor:default; }
   .pager button.cur{ background:var(--navy); color:#fff; font-weight:bold; cursor:default; }
   .pager .gap{ color:#9aa; padding:0 2px; }
+  .lineform{ max-width:680px; }
+  .lrow{ margin:16px 0; }
+  .lrow label{ display:block; font-weight:bold; color:var(--navy); font-size:14px; margin-bottom:3px; }
+  .lhint{ font-size:12px; color:#789; margin-bottom:6px; line-height:1.6; }
+  .lrow input, .lrow textarea{ width:100%; padding:8px 10px; border:1px solid #ccd; border-radius:6px; font-size:13px; font-family:inherit; }
+  .lrow textarea{ resize:vertical; word-break:break-all; }
+  .lbtns{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+  .lmsg{ font-size:13px; }
+  .lmsg.ok{ color:#0a8a43; font-weight:bold; }
+  .lmsg.ng{ color:#b00020; font-weight:bold; }
+  .lstat{ font-size:13px; padding:8px 12px; border-radius:6px; margin-bottom:8px; }
+  .lstat.set{ background:#eafaf0; border:1px solid #b6e6c8; color:#0a8a43; }
+  .lstat.unset{ background:#fff7e6; border:1px solid #f0d8a8; color:#8a5a00; }
 </style>
 </head><body>
 
@@ -129,6 +142,7 @@
   <nav class="tabs">
     <button class="tab active" id="tab-customers" onclick="switchView('customers')">顧客管理</button>
     <button class="tab" id="tab-templates" onclick="switchView('templates')">文面テンプレート</button>
+    <button class="tab" id="tab-line" onclick="switchView('line')">LINE連携設定</button>
   </nav>
   <div class="me"><span id="meShop"></span><button class="btn logout" onclick="doLogout()">ログアウト</button></div>
 </header>
@@ -187,6 +201,44 @@
     </div>
     <div id="tplWrap"><div class="loading">読み込み中…</div></div>
   </section>
+
+  <section id="view-line" style="display:none">
+    <h2>LINE連携設定（この店舗）</h2>
+    <div class="tpl-help">
+      お店のLINE公式アカウントと「車屋さんのお知らせ便」をつなぐ設定です。
+      LINEの管理画面でコピーした<b>3つの値</b>を、下の欄に貼り付けて保存してください。
+      <span class="muted">※貼り付けた値は安全に保管され、保存後はこの画面から再表示されません（書き込み専用）。設定方法が分からない場合は株式会社LOGIQAが代行します。</span>
+    </div>
+
+    <div class="lineform">
+      <div class="lstat" id="lineStatus"></div>
+
+      <div class="lrow">
+        <label>① チャネルアクセストークン（長期）</label>
+        <div class="lhint">LINE Developers の「Messaging API設定」→「チャネルアクセストークン（長期）」でコピーした値</div>
+        <textarea id="lf-token" rows="3" placeholder="ここに貼り付け（とても長い文字列です）"></textarea>
+      </div>
+
+      <div class="lrow">
+        <label>② Channel secret</label>
+        <div class="lhint">LINE公式アカウントの「設定」→「Messaging API」にある「Channel secret」でコピーした値</div>
+        <input type="text" id="lf-secret" placeholder="ここに貼り付け">
+      </div>
+
+      <div class="lrow">
+        <label>③ LIFF ID</label>
+        <div class="lhint">LINE Developers の「LIFF」タブで発行されたID（例：2010315487-xxxxxxxx）</div>
+        <input type="text" id="lf-liff" placeholder="ここに貼り付け">
+      </div>
+
+      <div class="lbtns">
+        <button class="btn" id="lf-test" onclick="testLineConn()">接続テスト</button>
+        <button class="btn" id="lf-save" onclick="saveLineCreds()">保存する</button>
+        <span class="lmsg" id="lf-msg"></span>
+      </div>
+      <div class="lhint" style="margin-top:6px">「接続テスト」を押すと、トークンが正しいかをその場で確認できます（メッセージは送信されません）。問題なければ「保存する」を押してください。</div>
+    </div>
+  </section>
 </div>
 <footer>株式会社LOGIQA ／ 車屋さんのお知らせ便</footer>
 </div>
@@ -227,11 +279,14 @@ async function doLogout(){ await sb.auth.signOut(); location.reload(); }
 
 // ---------- ビュー切替 ----------
 function switchView(view){
-  const isTpl = view === "templates";
-  document.getElementById("view-customers").style.display = isTpl ? "none" : "";
-  document.getElementById("view-templates").style.display = isTpl ? "" : "none";
-  document.getElementById("tab-customers").classList.toggle("active", !isTpl);
-  document.getElementById("tab-templates").classList.toggle("active", isTpl);
+  const views = ["customers","templates","line"];
+  views.forEach(v=>{
+    const sec = document.getElementById("view-"+v);
+    if(sec) sec.style.display = (v===view) ? "" : "none";
+    const tab = document.getElementById("tab-"+v);
+    if(tab) tab.classList.toggle("active", v===view);
+  });
+  if(view==="line") renderLineView();
 }
 
 // ---------- 起動：セッション確認 → 自店ロード ----------
@@ -773,6 +828,74 @@ function insertKey(tok){
     el.selectionStart=el.selectionEnd=s+tok.length; el.focus();
     tplPreview(el.id.slice(3));
   }
+}
+
+// ---------- LINE連携設定（セルフサービス・ウィザード） ----------
+function renderLineView(){
+  const stat = document.getElementById("lineStatus");
+  if(!stat) return;
+  if(SHOP && SHOP.liff_id){
+    stat.className = "lstat set";
+    stat.textContent = "現在の連携状況：設定済み（LIFF ID 登録あり）。値を変更する場合のみ、下に貼り付けて保存してください。";
+  } else {
+    stat.className = "lstat unset";
+    stat.textContent = "現在の連携状況：未設定。下の3つを貼り付けて保存すると、LINE配信が使えるようになります。";
+  }
+  const msg = document.getElementById("lf-msg");
+  if(msg){ msg.className="lmsg"; msg.textContent=""; }
+}
+
+async function testLineConn(){
+  const token = document.getElementById("lf-token").value.trim();
+  const msg = document.getElementById("lf-msg");
+  const btn = document.getElementById("lf-test");
+  if(!token){ msg.className="lmsg ng"; msg.textContent="先に①アクセストークンを貼り付けてください。"; return; }
+  msg.className="lmsg"; msg.textContent="確認中…"; btn.disabled=true;
+  try{
+    const res = await fetch(`${window.SB_URL}/functions/v1/verify-line`, {
+      method:"POST",
+      headers:{ "content-type":"application/json", "apikey":window.SB_ANON, "authorization":`Bearer ${window.SB_ANON}` },
+      body: JSON.stringify({ token })
+    });
+    const data = await res.json();
+    if(data.ok && data.valid){
+      msg.className="lmsg ok";
+      msg.textContent = "接続OK（アカウント：" + (data.displayName || "名称取得不可") + "）。保存できます。";
+    } else if(data.error === "invalid_token"){
+      msg.className="lmsg ng"; msg.textContent="トークンが正しくありません。コピーし直して貼り付けてください。";
+    } else {
+      msg.className="lmsg ng"; msg.textContent="確認できませんでした（"+ esc(data.error||"unknown") +"）。LOGIQAへご連絡ください。";
+    }
+  }catch(e){
+    msg.className="lmsg ng"; msg.textContent="通信に失敗しました。時間をおいて再度お試しください。";
+  }finally{ btn.disabled=false; }
+}
+
+async function saveLineCreds(){
+  const token = document.getElementById("lf-token").value.trim();
+  const secret = document.getElementById("lf-secret").value.trim();
+  const liff = document.getElementById("lf-liff").value.trim();
+  const msg = document.getElementById("lf-msg");
+  const btn = document.getElementById("lf-save");
+  const patch = {};
+  if(token) patch.line_token = token;
+  if(secret) patch.line_secret = secret;
+  if(liff) patch.liff_id = liff;
+  if(Object.keys(patch).length === 0){ msg.className="lmsg ng"; msg.textContent="貼り付ける値がありません。"; return; }
+  msg.className="lmsg"; msg.textContent="保存中…"; btn.disabled=true;
+  const { error } = await sb.from("shops").update(patch).eq("id", SHOP.id);
+  btn.disabled=false;
+  if(error){ msg.className="lmsg ng"; msg.textContent="保存に失敗しました："+esc(error.message); return; }
+  if(liff) SHOP.liff_id = liff;
+  // 秘匿値は画面に残さない（書き込み専用）
+  document.getElementById("lf-token").value = "";
+  document.getElementById("lf-secret").value = "";
+  msg.className="lmsg ok"; msg.textContent="保存しました。LINE配信の準備が整いました。";
+  // ステータス表示・上部バッジを更新
+  renderLineView();
+  document.getElementById("shopbar").innerHTML =
+    `<span class="tag neutral">プラン：${esc(SHOP.plan||'-')}</span>`
+    + `<span class="tag ${SHOP.liff_id?'ok':'ng'}">LINE連携(LIFF)：${SHOP.liff_id?'設定済':'未設定'}</span>`;
 }
 
 boot();
