@@ -132,6 +132,8 @@
   .gstep-h b{ color:var(--navy); font-size:15px; }
   .gstep ol{ padding-left:20px; margin:8px 0; } .gstep li{ margin:6px 0; font-size:14px; line-height:1.7; }
   .gstep .gurl{ background:#eef1f5; padding:2px 6px; border-radius:4px; font-size:12px; color:#a3306b; word-break:break-all; }
+  .gstep a.gurl{ color:#2e6db4; text-decoration:underline; cursor:pointer; }
+  .gstep a.gurl:hover{ background:#dde7f3; }
   .glead{ background:#f6f8fb; border-left:4px solid var(--accent); padding:12px 16px; border-radius:0 6px 6px 0; font-size:14px; margin:0 0 8px; }
   .gwarn{ background:#fff7e6; border:1px solid #f0d8a8; border-radius:8px; padding:12px 16px; margin:14px 0 0; font-size:13px; color:#8a5a00; }
 </style>
@@ -272,7 +274,7 @@
           <div class="gstep">
             <div class="gstep-h"><span class="gnum">1</span><b>チャネルアクセストークン（長期）</b></div>
             <ol>
-              <li>パソコンで <span class="gurl">https://developers.line.biz/console/</span> を開き、お店のアカウントでログインします。</li>
+              <li>パソコンで <a class="gurl" href="https://developers.line.biz/console/" target="_blank" rel="noopener">https://developers.line.biz/console/</a> を開き、お店のアカウントでログインします。</li>
               <li>お店のチャネル（プロバイダー内の「Messaging API」のもの）を選びます。</li>
               <li>画面の上部（チャネル名の少し下）に「<b>チャネル基本設定</b>」と表示されたタブがあります。そこをクリックして「<b>Messaging API設定</b>」に切り替えます。</li>
               <li>そのまま下へスクロールし、「<b>チャネルアクセストークン（長期）</b>」の〔発行〕ボタンを押します。</li>
@@ -283,7 +285,7 @@
           <div class="gstep">
             <div class="gstep-h"><span class="gnum">2</span><b>Channel secret（チャネルシークレット）</b></div>
             <ol>
-              <li><span class="gurl">https://manager.line.biz/</span> を開き、お店のアカウントを選びます。</li>
+              <li><a class="gurl" href="https://manager.line.biz/" target="_blank" rel="noopener">https://manager.line.biz/</a> を開き、お店のアカウントを選びます。</li>
               <li>右上の「<b>設定</b>」→ 左メニューの「<b>Messaging API</b>」を開きます。</li>
               <li>「<b>Channel secret</b>」の値を〔コピー〕し、設定画面の<b>②の欄</b>に貼り付けます。</li>
             </ol>
@@ -293,7 +295,7 @@
             <div class="gstep-h"><span class="gnum">3</span><b>LIFF ID</b></div>
             <p class="glead" style="margin:0 0 10px">※LIFFは、手順1の「Messaging API」のチャネルには追加できません。<b>同じ場所に「LINEログイン」用のチャネルをもう1つ作って</b>、そこに追加します。下のとおり進めてください。</p>
             <ol>
-              <li><span class="gurl">https://developers.line.biz/console/</span> を開き、<b>お店のプロバイダー（一覧の画面）</b>を表示します。</li>
+              <li><a class="gurl" href="https://developers.line.biz/console/" target="_blank" rel="noopener">https://developers.line.biz/console/</a> を開き、<b>お店のプロバイダー（一覧の画面）</b>を表示します。</li>
               <li>「<b>新規チャネル作成</b>」を押し、種類で「<b>LINEログイン</b>」を選びます（「LINEミニアプリ」ではありません）。</li>
               <li>次のとおり入力して作成します。
                 <ul>
