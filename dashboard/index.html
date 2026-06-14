@@ -291,9 +291,18 @@
 
           <div class="gstep">
             <div class="gstep-h"><span class="gnum">3</span><b>LIFF ID</b></div>
+            <p class="glead" style="margin:0 0 10px">※LIFFは、手順1の「Messaging API」のチャネルには追加できません。<b>同じ場所に「LINEログイン」用のチャネルをもう1つ作って</b>、そこに追加します。下のとおり進めてください。</p>
             <ol>
-              <li>手順1と同じ <span class="gurl">https://developers.line.biz/console/</span> のチャネル画面に戻ります。</li>
-              <li>上部の「<b>LIFF</b>」タブを開き、〔追加〕を押します。</li>
+              <li><span class="gurl">https://developers.line.biz/console/</span> を開き、<b>お店のプロバイダー（一覧の画面）</b>を表示します。</li>
+              <li>「<b>新規チャネル作成</b>」を押し、種類で「<b>LINEログイン</b>」を選びます（「LINEミニアプリ」ではありません）。</li>
+              <li>次のとおり入力して作成します。
+                <ul>
+                  <li>チャネル名：例「お店名 連携」（お客様のログイン画面に表示されます）</li>
+                  <li>アプリタイプ：「<b>ウェブアプリ</b>」にチェック</li>
+                  <li>その他の必須項目を入力</li>
+                </ul>
+              </li>
+              <li>作成した<b>LINEログインのチャネル</b>を開き、上部の「<b>LIFF</b>」タブ →〔追加〕を押します。</li>
               <li>次のとおり入力します。
                 <ul>
                   <li>エンドポイントURL：<span class="gurl">https://benriyamanzoku-maker.github.io/logiqa-liff/</span></li>
@@ -303,6 +312,7 @@
               </li>
               <li>〔追加〕すると「<b>LIFF ID</b>」（例：2010315487-xxxxxxxx）が表示されます。これを〔コピー〕し、設定画面の<b>③の欄</b>に貼り付けます。</li>
             </ol>
+            <p class="gwarn" style="margin:8px 0 0">必ず手順1〜2と<b>同じプロバイダーの中</b>に作成してください。別の場所に作るとLINE連携が成立しません。</p>
           </div>
 
           <div class="gwarn">
