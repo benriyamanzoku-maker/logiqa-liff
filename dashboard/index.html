@@ -236,19 +236,19 @@
       <div class="lrow">
         <label>① チャネルアクセストークン（長期）</label>
         <div class="lhint">LINE Developers の「Messaging API設定」→「チャネルアクセストークン（長期）」でコピーした値</div>
-        <textarea id="lf-token" rows="3" placeholder="ここに貼り付け（とても長い文字列です）"></textarea>
+        <textarea id="lf-token" rows="3" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="ここに貼り付け（とても長い文字列です）"></textarea>
       </div>
 
       <div class="lrow">
         <label>② Channel secret</label>
-        <div class="lhint">LINE公式アカウントの「設定」→「Messaging API」にある「Channel secret」でコピーした値</div>
-        <input type="text" id="lf-secret" placeholder="ここに貼り付け">
+        <div class="lhint">①と同じMessaging APIチャネルの「チャネル基本設定」タブにある「Channel secret」の値</div>
+        <input type="text" id="lf-secret" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="ここに貼り付け">
       </div>
 
       <div class="lrow">
         <label>③ LIFF ID</label>
-        <div class="lhint">LINE Developers の「LIFF」タブで発行されたID（例：2010315487-xxxxxxxx）</div>
-        <input type="text" id="lf-liff" placeholder="ここに貼り付け">
+        <div class="lhint">新しく作る「LINEログイン」チャネルの「LIFF」タブで発行されたID（例：2010315487-xxxxxxxx）</div>
+        <input type="text" id="lf-liff" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" placeholder="ここに貼り付け">
       </div>
 
       <div class="lbtns">
@@ -269,57 +269,85 @@
           <button type="button" class="modal-x" onclick="closeLineGuide()" aria-label="閉じる">×</button>
         </div>
         <div class="modal-body">
-          <p class="glead">お店のLINE公式アカウントの管理画面から、下の<b>3つの値</b>をコピーして、設定画面の同じ番号の欄に貼り付けてください。所要時間はおよそ10分です。</p>
+          <p class="glead">お店のLINE設定画面から<b>3つの値</b>をコピーし、設定画面の同じ番号の欄に貼り付けます。所要時間はおよそ10分です。すべて <a class="gurl" href="https://developers.line.biz/console/" target="_blank" rel="noopener">developers.line.biz/console</a> の中だけで完結します。</p>
+
+          <!-- はじめに：用語のかんたん説明 -->
+          <div style="background:#eef4fb;border:1px solid #c6d9ee;border-radius:8px;padding:12px 14px;margin:0 0 14px;font-size:14px;line-height:1.8">
+            <b style="color:#1a3c6e">はじめに（言葉の意味）</b>
+            <ul style="margin:6px 0 0;padding-left:20px">
+              <li><b>プロバイダー</b>＝お店専用の「箱」。この箱の中に、下の2つの機能を作ります。</li>
+              <li><b>Messaging APIチャネル</b>＝お客様へお知らせを送る機能。<b>①と②</b>はここで取ります。</li>
+              <li><b>LINEログインチャネル</b>＝お客様が連携する画面の機能。<b>③</b>はここで取ります（後で新しく作ります）。</li>
+            </ul>
+            <p style="margin:8px 0 0;color:#c0392b"><b>大事なルール：</b>①②③は必ず<b>同じ1つのプロバイダー（箱）の中</b>に作ります。別の箱に作ると連携できません。</p>
+          </div>
+
+          <!-- 3つの値の場所マップ -->
+          <table style="width:100%;border-collapse:collapse;margin:0 0 16px;font-size:13.5px">
+            <thead><tr style="background:#1a3c6e;color:#fff">
+              <th style="padding:7px 8px;text-align:left;border:1px solid #1a3c6e">値</th>
+              <th style="padding:7px 8px;text-align:left;border:1px solid #1a3c6e">どこで取る？</th>
+            </tr></thead>
+            <tbody>
+              <tr><td style="padding:7px 8px;border:1px solid #c6d9ee">① アクセストークン</td><td style="padding:7px 8px;border:1px solid #c6d9ee">Messaging APIチャネル →「Messaging API設定」タブ</td></tr>
+              <tr style="background:#f6f9fc"><td style="padding:7px 8px;border:1px solid #c6d9ee">② Channel secret</td><td style="padding:7px 8px;border:1px solid #c6d9ee">同じMessaging APIチャネル →「チャネル基本設定」タブ</td></tr>
+              <tr><td style="padding:7px 8px;border:1px solid #c6d9ee">③ LIFF ID</td><td style="padding:7px 8px;border:1px solid #c6d9ee">新しく作る「LINEログイン」チャネル →「LIFF」タブ</td></tr>
+            </tbody>
+          </table>
 
           <div class="gstep">
-            <div class="gstep-h"><span class="gnum">1</span><b>チャネルアクセストークン（長期）</b></div>
+            <div class="gstep-h"><span class="gnum">1</span><b>① アクセストークンを取る</b></div>
+            <p class="glead" style="margin:0 0 8px">📍今いる場所：<b>Messaging APIチャネル</b>（お知らせ送信用）</p>
             <ol>
-              <li>パソコンで <a class="gurl" href="https://developers.line.biz/console/" target="_blank" rel="noopener">https://developers.line.biz/console/</a> を開き、お店のアカウントでログインします。</li>
-              <li>お店のチャネル（プロバイダー内の「Messaging API」のもの）を選びます。</li>
-              <li>画面の上部（チャネル名の少し下）に「<b>チャネル基本設定</b>」と表示されたタブがあります。そこをクリックして「<b>Messaging API設定</b>」に切り替えます。</li>
-              <li>そのまま下へスクロールし、「<b>チャネルアクセストークン（長期）</b>」の〔発行〕ボタンを押します。</li>
-              <li>表示された長い文字列を〔コピー〕し、設定画面の<b>①の欄</b>に貼り付けます。</li>
+              <li><a class="gurl" href="https://developers.line.biz/console/" target="_blank" rel="noopener">developers.line.biz/console</a> を開き、お店のアカウントでログイン → お店のプロバイダー（箱）→ <b>Messaging API</b>のチャネルを開きます。</li>
+              <li>上部のタブで「<b>Messaging API設定</b>」を選びます。</li>
+              <li>下へスクロールし「<b>チャネルアクセストークン（長期）</b>」の〔発行〕を押します。</li>
+              <li>表示された長い文字列を〔コピー〕→ 設定画面の<b>①の欄</b>へ貼り付け。</li>
             </ol>
           </div>
 
           <div class="gstep">
-            <div class="gstep-h"><span class="gnum">2</span><b>Channel secret（チャネルシークレット）</b></div>
+            <div class="gstep-h"><span class="gnum">2</span><b>② Channel secret を取る</b></div>
+            <p class="glead" style="margin:0 0 8px">📍今いる場所：<b>同じMessaging APIチャネル</b>（移動しなくてOK）</p>
             <ol>
-              <li><a class="gurl" href="https://manager.line.biz/" target="_blank" rel="noopener">https://manager.line.biz/</a> を開き、お店のアカウントを選びます。</li>
-              <li>右上の「<b>設定</b>」→ 左メニューの「<b>Messaging API</b>」を開きます。</li>
-              <li>「<b>Channel secret</b>」の値を〔コピー〕し、設定画面の<b>②の欄</b>に貼り付けます。</li>
+              <li>同じチャネルの上部タブで「<b>チャネル基本設定</b>」を選びます。</li>
+              <li>少し下にある「<b>Channel secret</b>」の値を〔コピー〕→ 設定画面の<b>②の欄</b>へ貼り付け。</li>
             </ol>
           </div>
 
           <div class="gstep">
-            <div class="gstep-h"><span class="gnum">3</span><b>LIFF ID</b></div>
-            <p class="glead" style="margin:0 0 10px">※LIFFは、手順1の「Messaging API」のチャネルには追加できません。<b>同じ場所に「LINEログイン」用のチャネルをもう1つ作って</b>、そこに追加します。下のとおり進めてください。</p>
+            <div class="gstep-h"><span class="gnum">3</span><b>③ LIFF ID を取る</b></div>
+            <p class="glead" style="margin:0 0 8px">📍今いる場所：<b>新しく作る「LINEログイン」チャネル</b></p>
+            <p class="gwarn" style="margin:0 0 10px">③だけは別の機能です。LIFFはMessaging APIチャネルには作れないので、<b>同じプロバイダー（箱）の中</b>に「LINEログイン」チャネルをもう1つ作ってから追加します。</p>
             <ol>
-              <li><a class="gurl" href="https://developers.line.biz/console/" target="_blank" rel="noopener">https://developers.line.biz/console/</a> を開き、<b>お店のプロバイダー（一覧の画面）</b>を表示します。</li>
-              <li>「<b>新規チャネル作成</b>」を押し、種類で「<b>LINEログイン</b>」を選びます（「LINEミニアプリ」ではありません）。</li>
-              <li>次のとおり入力して作成します。
+              <li><a class="gurl" href="https://developers.line.biz/console/" target="_blank" rel="noopener">developers.line.biz/console</a> で<b>お店のプロバイダー（①②と同じ箱）</b>を開きます。</li>
+              <li>「<b>新規チャネル作成</b>」→ 種類で「<b>LINEログイン</b>」を選びます（「LINEミニアプリ」ではありません）。</li>
+              <li>入力して作成：
                 <ul>
                   <li>チャネル名：例「お店名 連携」（お客様のログイン画面に表示されます）</li>
                   <li>アプリタイプ：「<b>ウェブアプリ</b>」にチェック</li>
                   <li>その他の必須項目を入力</li>
                 </ul>
               </li>
-              <li>作成した<b>LINEログインのチャネル</b>を開き、上部の「<b>LIFF</b>」タブ →〔追加〕を押します。</li>
-              <li>次のとおり入力します。
+              <li>作成した<b>LINEログインのチャネル</b>を開き、上部の「<b>LIFF</b>」タブを開きます。「登録されているLIFFアプリはありません。」と表示されたら、緑色の〔<b>追加</b>〕ボタンを押します。</li>
+              <li>入力：
                 <ul>
-                  <li>エンドポイントURL：<span class="gurl">https://benriyamanzoku-maker.github.io/logiqa-liff/</span></li>
+                  <li>LIFFアプリ名：<b>車屋さんのお知らせ便</b>（このサービス名。連携画面にも表示されます）</li>
                   <li>サイズ：<b>Full</b></li>
+                  <li>エンドポイントURL：<span class="gurl">https://benriyamanzoku-maker.github.io/logiqa-liff/</span></li>
                   <li>スコープ：<b>profile</b> と <b>openid</b> にチェック</li>
+                  <li>友だち追加オプション：<b>On（normal）</b>（連携と同時にお店の友だち追加を促せます）</li>
+                  <li>Scan QR：<b>オフ</b>のまま</li>
+                  <li>モジュールモード：<b>オフ</b>のまま</li>
                 </ul>
               </li>
-              <li>〔追加〕すると「<b>LIFF ID</b>」（例：2010315487-xxxxxxxx）が表示されます。これを〔コピー〕し、設定画面の<b>③の欄</b>に貼り付けます。</li>
+              <li>〔追加〕すると「<b>LIFF ID</b>」（例：2010315487-xxxxxxxx）が表示されます。〔コピー〕→ 設定画面の<b>③の欄</b>へ貼り付け。</li>
             </ol>
-            <p class="gwarn" style="margin:8px 0 0">必ず手順1〜2と<b>同じプロバイダーの中</b>に作成してください。別の場所に作るとLINE連携が成立しません。</p>
           </div>
 
           <div class="gwarn">
-            ①チャネルアクセストークンと②Channel secretは「銀行の暗証番号」と同じ大切な鍵です。第三者に教えたり、メールやSNSに貼ったりしないでください。この画面で保存したあとは、安全のため再表示されません。<br>
-            ご不明な点は株式会社LOGIQA（info@logiqa-inc.com）までご連絡ください。代行も承ります。
+            ①アクセストークンと②Channel secretは「銀行の暗証番号」と同じ大切な鍵です。第三者に教えたり、メールやSNSに貼ったりしないでください。この画面で保存したあとは、安全のため再表示されません。<br>
+            設定が難しい場合は、すべて株式会社LOGIQA（info@logiqa-inc.com）が代行します。お気軽にご連絡ください。
           </div>
         </div>
       </div>
