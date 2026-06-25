@@ -201,19 +201,9 @@
   </section>
 
   <section id="view-templates" style="display:none">
-    <h2>SMS送信元番号（この店舗）</h2>
-    <div class="tpl-help">
-      SMSで送る場合の<b>送信元として表示したい番号</b>です。
-      <span class="muted">※実送信はSMSプロバイダ契約後に有効化されます（現在は設定の保管のみ）。</span>
-      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <input type="text" id="smsFromInput" placeholder="例）0761-00-0000" style="padding:6px 10px;border:1px solid #ccd;border-radius:6px;min-width:220px">
-        <button class="btn" onclick="saveSmsFrom()">保存</button>
-        <span class="muted" id="smsFromMsg"></span>
-      </div>
-    </div>
     <h2>送信文面テンプレート（この店舗）</h2>
     <div class="tpl-help">
-      お客様へ送る文章を編集できます。下の<b>差込キーワード</b>はそのまま書くと送信時に実際の値へ置き換わります。空欄で保存すると<b>初期文に戻ります</b>。
+      お客様へ送る文章を編集できます。下の<b>差込キーワード</b>はそのまま書くと送信時に実際の値へ置き換わります。<b>空欄のときは、枠内にグレーで表示されている初期文がそのまま送信されます</b>（編集したい場合だけ上書きしてください）。
       <div class="tpl-keys">
         <span onclick="insertKey('{店舗名}')">{店舗名}</span><span onclick="insertKey('{お客様名}')">{お客様名}</span><span onclick="insertKey('{ナンバー}')">{ナンバー}</span><span onclick="insertKey('{車種}')">{車種}</span><span onclick="insertKey('{満了日}')">{満了日}</span><span onclick="insertKey('{残日数}')">{残日数}</span>
       </div>
@@ -372,7 +362,7 @@ const sb = window.supabase.createClient(window.SB_URL, window.SB_ANON);
 if(window.pdfjsLib){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js"; }
 
 // shops は列GRANTのため select * 不可。許可列のみ明示する。
-const SHOP_COLS = "id,name,plan,created_at,liff_id,tpl_reminder,tpl_message,tpl_postcard,tpl_reminder_2w,sms_from";
+const SHOP_COLS = "id,name,plan,created_at,liff_id,tpl_reminder,tpl_message,tpl_postcard,tpl_reminder_2w";
 
 let SHOP = null, CUST_MAP = {}, TPL = {};
 
@@ -492,7 +482,7 @@ function renderPager(){
 async function loadCustomers(){
   const wrap = document.getElementById("custWrap");
   wrap.innerHTML = '<div class="loading">読み込み中…</div>';
-  const cols = "id,name,line_user_id,linked_at,notify_line,notify_sms,phone,link_token";
+  const cols = "id,name,line_user_id,linked_at,notify_line,phone,link_token";
   const orderOf = (sort)=> sort==="new" ? ["created_at",false] : sort==="updated" ? ["updated_at",false] : ["name",true];
   const run = async (sort)=>{
     let q = sb.from("customers").select(cols, { count:"exact" });
@@ -542,9 +532,8 @@ async function loadCustomers(){
       return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button>${pdfBtn}<span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${esc(v.shaken_expiry||'-')} ${dd}　通知予定:${esc(v.notify_date||'-')}</div>`;
     }).join("") || '<span class="muted">車両なし</span>';
     const badge = isLinked ? `<span class="badge b-linked">連携済</span>` : `<span class="badge b-unlinked">未連携</span>`;
-    const lineOn = c.notify_line !== false, smsOn = !!c.notify_sms;
-    const chBoxes = `<span class="chk"><label><input type="checkbox" id="nl-${c.id}"${lineOn?' checked':''} onchange="saveChannels('${c.id}')">LINE</label>`
-      + `<label><input type="checkbox" id="ns-${c.id}"${smsOn?' checked':''} onchange="saveChannels('${c.id}')">SMS</label></span>`;
+    const lineOn = c.notify_line !== false;
+    const chBoxes = `<span class="chk"><label><input type="checkbox" id="nl-${c.id}"${lineOn?' checked':''} onchange="saveChannels('${c.id}')">LINEで通知する</label></span>`;
     const contact = `<div class="contact">`
       + `<div class="row1"><span class="lbl">通知方法</span> ${chBoxes}</div>`
       + `<div class="row2"><span class="lbl">電話</span><input class="phone" value="${esc(c.phone||'')}" placeholder="未登録" onchange="savePhone('${c.id}',this.value)"></div></div>`;
@@ -588,8 +577,7 @@ async function loadNotifications(){
 // ---------- 直叩き更新（RLS下・自店のみ） ----------
 async function saveChannels(customerId){
   const notify_line = document.getElementById("nl-"+customerId).checked;
-  const notify_sms  = document.getElementById("ns-"+customerId).checked;
-  const { error } = await sb.from("customers").update({ notify_line, notify_sms }).eq("id", customerId);
+  const { error } = await sb.from("customers").update({ notify_line }).eq("id", customerId);
   if(error){ alert("通知方法の保存に失敗：" + error.message); load(); }
 }
 async function savePhone(customerId, value){
@@ -890,20 +878,36 @@ const TPL_META = [
   { key:"tpl_message",     label:"任意メッセージ",           ch:"メッセージ送信の初期文" },
 ];
 const TPL_SAMPLE = { "店舗名":"サンプル店", "お客様名":"田中 一郎", "ナンバー":"金沢 500 あ 12-34", "車種":"トヨタ ノア", "満了日":"2026-07-15", "残日数":"35" };
+// 各テンプレートの初期文（送信プログラム daily-reminder / scheduler と同一文面）。
+// 店舗が未入力（空欄）のときは、この初期文がそのまま送信される。画面ではグレー表示する。
+const DASH_DEFAULTS = {
+  tpl_reminder:
+    "【{店舗名}】{お客様名} 様\n" +
+    "お車（{ナンバー} / {車種}）の車検満了日が {満了日}（あと{残日数}日）に近づいております。\n" +
+    "点検・お見積りのご予約を承ります。お気軽にご連絡ください。",
+  tpl_reminder_2w:
+    "【{店舗名}】{お客様名} 様\n" +
+    "お車（{ナンバー} / {車種}）の車検満了日 {満了日} が迫っております（あと{残日数}日）。\n" +
+    "まだお手続きがお済みでない場合は、お早めに点検・お見積りのご予約をお願いいたします。",
+  tpl_message:
+    "【{店舗名}】{お客様名} 様\n" +
+    "いつもご利用ありがとうございます。"
+};
 function fillTpl(tpl, ctx){ return String(tpl||"").replace(/\{(店舗名|お客様名|ナンバー|車種|満了日|残日数)\}/g,(_,k)=> ctx[k]!=null?ctx[k]:""); }
 function tplPreview(key){
   const ta = document.getElementById("ta-"+key), box = document.getElementById("pv-"+key);
   if(!ta||!box) return;
   const sample = { ...TPL_SAMPLE, "店舗名": (SHOP&&SHOP.name) || TPL_SAMPLE["店舗名"] };
-  box.innerHTML = '<span class="pl">送信プレビュー（サンプル値）</span>' + esc(fillTpl(ta.value, sample));
+  // 空欄なら初期文でプレビュー（実際の送信挙動と一致させる）。
+  const src = ta.value.trim() ? ta.value : (DASH_DEFAULTS[key]||"");
+  box.innerHTML = '<span class="pl">送信プレビュー（サンプル値）</span>' + esc(fillTpl(src, sample));
 }
 function loadTemplates(){
   TPL = SHOP || {};
-  const sf = document.getElementById("smsFromInput"); if(sf) sf.value = SHOP.sms_from || "";
   document.getElementById("tplWrap").innerHTML = TPL_META.map(m=>`
     <div class="tpl-card">
       <h3>${m.label}<span class="ch">${esc(m.ch)}</span></h3>
-      <textarea id="ta-${m.key}" oninput="tplPreview('${m.key}')">${esc(SHOP[m.key]||"")}</textarea>
+      <textarea id="ta-${m.key}" placeholder="${esc(DASH_DEFAULTS[m.key]||"")}" oninput="tplPreview('${m.key}')">${esc(SHOP[m.key]||"")}</textarea>
       <div class="tpl-prev" id="pv-${m.key}"></div>
       <div class="tpl-row">
         <button class="btn save" onclick="saveTpl('${m.key}')">この文面を保存</button>
@@ -926,14 +930,6 @@ async function saveTpl(key){
 async function resetTpl(key){
   if(!confirm("この文面を初期文に戻します。よろしいですか？")) return;
   document.getElementById("ta-"+key).value=""; await saveTpl(key);
-}
-async function saveSmsFrom(){
-  const el = document.getElementById("smsFromInput"), msg = document.getElementById("smsFromMsg");
-  msg.textContent = "保存中…";
-  const { error } = await sb.from("shops").update({ sms_from: el.value || null }).eq("id", SHOP.id);
-  if(error){ msg.textContent = "保存失敗：" + error.message; return; }
-  SHOP.sms_from = el.value || null;
-  msg.textContent = "保存しました"; setTimeout(()=>{ msg.textContent=""; }, 2500);
 }
 function insertKey(tok){
   const el = document.activeElement;
