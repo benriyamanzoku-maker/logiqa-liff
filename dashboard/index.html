@@ -620,7 +620,7 @@ async function deleteCustomer(customerId, name){
   // vehicles は customers への FK が ON DELETE CASCADE のため、顧客削除で車両も自動削除される。
   const { error } = await sb.from("customers").delete().eq("id", customerId);
   if(error){ alert("顧客の削除に失敗：" + error.message); return; }
-  alert(`「${name}」を削除しました。`);
+  // 削除完了の通知は出さない（一覧から消えるため自明）。失敗時のみ alert。
   load();
 }
 
