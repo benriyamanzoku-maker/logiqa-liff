@@ -34,7 +34,7 @@
   .b-sent{ background:#e6f7ee; color:#1a7a43; } .b-failed{ background:#fdecea; color:#c0392b; } .b-skip{ background:#eef1f5; color:#788; }
   .veh{ font-size:12px; color:#445; border:1px solid #dde; border-radius:8px; padding:8px 10px; margin-bottom:6px; }
   .veh:last-child{ margin-bottom:0; } .veh .soon{ color:var(--red); font-weight:bold; } .veh .exp{ color:#9aa; }
-  .opcell{ white-space:nowrap; } .opcell .contact{ margin-top:8px; padding-top:8px; border-top:1px dashed #dde; font-size:12px; color:#445; }
+  .opcell{ white-space:normal; } .opcell .btn{ white-space:nowrap; } .opcell .contact{ margin-top:8px; padding-top:8px; border-top:1px dashed #dde; font-size:12px; color:#445; }
   .opcell .contact .row1,.opcell .contact .row2{ display:flex; align-items:center; gap:6px; } .opcell .contact .row2{ margin-top:4px; }
   .opcell .lbl{ color:#778; } .opcell .chk label{ margin-right:10px; cursor:pointer; } .opcell .chk input{ margin-right:3px; vertical-align:middle; }
   .opcell .phone{ padding:3px 6px; border:1px solid #ccd; border-radius:5px; font-size:12px; width:140px; }
@@ -549,7 +549,7 @@ async function loadCustomers(){
     return `<tr><td>${esc(c.name)}</td><td>${badge}<div class="muted">${c.linked_at?esc(c.linked_at.slice(0,10)):''}</div></td><td>${vs}</td><td>${ops}</td></tr>`;
   }).join("");
   document.getElementById("custWrap").innerHTML =
-    `<table><thead><tr><th style="width:20%">顧客名</th><th style="width:14%">LINE連携</th><th>保有車両 / 車検満了</th><th style="width:22%">操作</th></tr></thead><tbody>${rows||'<tr><td colspan=4 class="muted">顧客なし</td></tr>'}</tbody></table>`;
+    `<table><thead><tr><th style="width:16%">顧客名</th><th style="width:11%">LINE連携</th><th style="width:33%">保有車両 / 車検満了</th><th style="width:40%">操作</th></tr></thead><tbody>${rows||'<tr><td colspan=4 class="muted">顧客なし</td></tr>'}</tbody></table>`;
   renderPager();
 }
 
