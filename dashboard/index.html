@@ -37,7 +37,6 @@
   .opcell{ white-space:normal; } .opcell .btn{ white-space:nowrap; } .opcell .contact{ margin-top:8px; padding-top:8px; border-top:1px dashed #dde; font-size:12px; color:#445; }
   .opcell .contact .row1,.opcell .contact .row2{ display:flex; align-items:center; gap:6px; } .opcell .contact .row2{ margin-top:4px; }
   .opcell .lbl{ color:#778; } .opcell .chk label{ margin-right:10px; cursor:pointer; } .opcell .chk input{ margin-right:3px; vertical-align:middle; }
-  .opcell .phone{ padding:3px 6px; border:1px solid #ccd; border-radius:5px; font-size:12px; width:140px; }
   .muted{ color:#9aa; font-size:12px; } .loading{ text-align:center; padding:40px; color:#9aa; }
   .cust-sum{ cursor:pointer; } .cust-sum:hover{ background:#f8fafc; } .cust-sum td:first-child{ font-weight:600; }
   .cust-sum .soon{ color:var(--red); font-weight:bold; } .cust-sum .exp{ color:#9aa; }
@@ -181,7 +180,7 @@
     <div class="kpis" id="kpis"></div>
     <h2>顧客一覧（LINE連携状況・保有車両）</h2>
     <div class="custtools">
-      <input id="custSearch" type="search" placeholder="顧客名・電話で検索" oninput="onSearchInput()">
+      <input id="custSearch" type="search" placeholder="顧客名で検索" oninput="onSearchInput()">
       <select id="custSort" onchange="onSortChange()">
         <option value="name">名前順（あいうえお）</option>
         <option value="new">新着順（登録が新しい）</option>
@@ -498,11 +497,11 @@ async function loadCustomers(){
   const wrap = document.getElementById("custWrap");
   wrap.innerHTML = '<div class="loading">読み込み中…</div>';
   try{
-  const cols = "id,name,line_user_id,linked_at,notify_line,phone,link_token";
+  const cols = "id,name,line_user_id,linked_at,notify_line,link_token";
   const orderOf = (sort)=> sort==="new" ? ["created_at",false] : sort==="updated" ? ["updated_at",false] : ["name",true];
   const run = async (sort)=>{
     let q = sb.from("customers").select(cols, { count:"exact" });
-    if(CUST_Q){ const t = CUST_Q.replace(/[%,]/g," "); q = q.or(`name.ilike.%${t}%,phone.ilike.%${t}%`); }
+    if(CUST_Q){ const t = CUST_Q.replace(/[%,]/g," "); q = q.ilike("name", `%${t}%`); }
     const [col, asc] = orderOf(sort);
     q = q.order(col, { ascending: asc }).range(CUST_PAGE*PAGE_SIZE, CUST_PAGE*PAGE_SIZE + PAGE_SIZE - 1);
     return await q;
@@ -559,8 +558,7 @@ async function loadCustomers(){
     const lineOn = c.notify_line !== false;
     const chBoxes = `<span class="chk"><label><input type="checkbox" id="nl-${c.id}"${lineOn?' checked':''} onchange="saveChannels('${c.id}')">LINEで通知する</label></span>`;
     const contact = `<div class="contact">`
-      + `<div class="row1"><span class="lbl">通知方法</span> ${chBoxes}</div>`
-      + `<div class="row2"><span class="lbl">電話</span><input class="phone" value="${esc(c.phone||'')}" placeholder="未登録" onchange="savePhone('${c.id}',this.value)"></div></div>`;
+      + `<div class="row1"><span class="lbl">通知方法</span> ${chBoxes}</div></div>`;
     const sendBtn = isLinked
       ? `<button class="btn send" onclick="sendMessage('${c.id}','${esc(c.name)}')">メッセージ送信</button>`
       : `<button class="btn send ghost" title="LINE未連携のため送信不可">メッセージ送信</button>`;
@@ -614,10 +612,6 @@ async function saveChannels(customerId){
   const notify_line = document.getElementById("nl-"+customerId).checked;
   const { error } = await sb.from("customers").update({ notify_line }).eq("id", customerId);
   if(error){ alert("通知方法の保存に失敗：" + error.message); load(); }
-}
-async function savePhone(customerId, value){
-  const { error } = await sb.from("customers").update({ phone: value }).eq("id", customerId);
-  if(error){ alert("電話番号の保存に失敗：" + error.message); load(); }
 }
 async function bindUid(customerId){
   const c = CUST_MAP[customerId]; if(!c) return;
