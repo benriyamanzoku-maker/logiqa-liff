@@ -42,6 +42,8 @@
   .cust-sum{ cursor:pointer; } .cust-sum:hover{ background:#f8fafc; } .cust-sum td:first-child{ font-weight:600; }
   .cust-sum .soon{ color:var(--red); font-weight:bold; } .cust-sum .exp{ color:#9aa; }
   .arw{ color:#88a; font-size:11px; margin-right:2px; }
+  .btn-broadcast{ margin-left:auto; padding:9px 16px; border:none; border-radius:8px; background:#1a3c6e; color:#fff; font-weight:bold; font-size:13px; cursor:pointer; }
+  .btn-broadcast:hover{ background:#14305a; } .btn-broadcast:disabled{ background:#9aa; cursor:default; }
   .cust-det>td{ background:#fafbfc; padding:14px 16px; }
   .detgrid{ display:flex; gap:20px; flex-wrap:wrap; } .detcol{ flex:1; min-width:300px; }
   .detlbl{ font-size:11px; color:#889; font-weight:600; margin-bottom:6px; }
@@ -186,6 +188,7 @@
         <option value="updated">更新日順（最近更新）</option>
       </select>
       <span class="cnt" id="custCnt"></span>
+      <button id="btnBroadcast" class="btn-broadcast" onclick="sendBroadcast()">全員へ一斉送信</button>
     </div>
     <div id="custWrap"><div class="loading">読み込み中…</div></div>
     <div class="pager" id="custPager"></div>
@@ -673,6 +676,39 @@ async function sendMessage(customerId, name){
   }
   if(data && data.ok){ alert(`${name} 様へ送信しました。`); load(); }
   else { alert("送信に失敗しました：" + (data?.error||"unknown")); }
+}
+
+// ---------- 全員へ一斉送信（LINE連携済みの全顧客へ共通メッセージ） ----------
+async function sendBroadcast(){
+  const btn = document.getElementById("btnBroadcast");
+  // 連携済み（line_user_id あり）の全顧客を取得。※一覧のページング・検索に関わらず全件。
+  const { data:targets, error:qErr } = await sb.from("customers")
+    .select("id,name").not("line_user_id","is",null).order("name",{ascending:true});
+  if(qErr){ alert("対象の取得に失敗しました：" + qErr.message); return; }
+  if(!targets || targets.length===0){
+    alert("LINE連携済みの顧客がいません。QR連携が済んだ顧客にのみ一斉送信できます。"); return;
+  }
+  const text = prompt(`LINE連携済みの ${targets.length} 名へ送る共通メッセージを入力してください：\n（例：年末年始の営業案内、キャンペーン告知など）`, "");
+  if(text===null) return;
+  if(!text.trim()){ alert("本文が空です。"); return; }
+  if(!confirm(`LINE連携済みの ${targets.length} 名へ、以下のメッセージを一斉送信します。\nよろしいですか？\n\n${text}`)) return;
+
+  btn.disabled = true; const label = btn.textContent;
+  let ok=0, ng=0; const fails=[];
+  for(let i=0;i<targets.length;i++){
+    const t = targets[i];
+    btn.textContent = `送信中… ${i+1}/${targets.length}`;
+    try{
+      const { data, error } = await sb.functions.invoke("send-message", { body:{ customer_id:t.id, text, type:"broadcast" } });
+      if(error || !(data && data.ok)){ ng++; fails.push(t.name); }
+      else ok++;
+    }catch(e){ ng++; fails.push(t.name); }
+  }
+  btn.disabled = false; btn.textContent = label;
+  let msg = `一斉送信が完了しました。\n成功：${ok} 名 ／ 失敗：${ng} 名`;
+  if(fails.length) msg += `\n\n失敗した顧客：${fails.slice(0,20).join("、")}${fails.length>20?" ほか":""}`;
+  alert(msg);
+  load();
 }
 
 // ---------- QR連携カード発行（ブラウザ完結・link_tokenはRLSで自店のみ読める） ----------
