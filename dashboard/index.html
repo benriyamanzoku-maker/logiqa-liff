@@ -494,6 +494,7 @@ function renderPager(){
 async function loadCustomers(){
   const wrap = document.getElementById("custWrap");
   wrap.innerHTML = '<div class="loading">読み込み中…</div>';
+  try{
   const cols = "id,name,line_user_id,linked_at,notify_line,phone,link_token";
   const orderOf = (sort)=> sort==="new" ? ["created_at",false] : sort==="updated" ? ["updated_at",false] : ["name",true];
   const run = async (sort)=>{
@@ -578,6 +579,10 @@ async function loadCustomers(){
   document.getElementById("custWrap").innerHTML =
     `<table><thead><tr><th style="width:34%">顧客名</th><th style="width:22%">LINE連携</th><th>直近の車検満了</th></tr></thead><tbody>${rows||'<tr><td colspan=3 class="muted">顧客なし</td></tr>'}</tbody></table>`;
   renderPager();
+  }catch(err){
+    wrap.innerHTML = '<div class="loading" style="color:#c0392b">一覧の表示でエラー：'+esc(err&&err.message||String(err))+'</div>';
+    console.error("loadCustomers error:", err);
+  }
 }
 
 // 送信履歴（直近80件・一覧のページングとは独立）
