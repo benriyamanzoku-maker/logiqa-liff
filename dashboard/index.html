@@ -560,8 +560,8 @@ async function loadCustomers(){
     const contact = `<div class="contact">`
       + `<div class="row1"><span class="lbl">通知方法</span> ${chBoxes}</div></div>`;
     const sendBtn = isLinked
-      ? `<button class="btn send" onclick="sendMessage('${c.id}','${esc(c.name)}')">メッセージ送信</button>`
-      : `<button class="btn send ghost" title="LINE未連携のため送信不可">メッセージ送信</button>`;
+      ? `<button class="btn send" onclick="sendMessage('${c.id}','${esc(c.name)}')">LINE送信</button>`
+      : `<button class="btn send ghost" title="LINE未連携のため送信不可">LINE送信</button>`;
     const ops = `<div class="opcell">`
       + `<button class="btn" onclick="bindUid('${c.id}')">連携ID設定/変更</button>`
       + `<button class="btn qr" onclick="generateCard('${c.id}')">QR発行</button>`
