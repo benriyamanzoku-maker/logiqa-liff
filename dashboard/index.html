@@ -355,7 +355,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="./config.js"></script>
 <script>
@@ -676,10 +675,12 @@ async function generateCard(customerId){
   const c = CUST_MAP[customerId]; if(!c) return;
   if(!SHOP || !SHOP.liff_id){ alert("店舗のLINE連携(LIFF)が未設定のためQRを発行できません。LOGIQAへお問い合わせください。"); return; }
   if(!c.link_token){ alert("この顧客の連携トークンが見つかりません。"); return; }
-  if(typeof QRCode==="undefined"){ alert("QR生成ライブラリの読み込みに失敗しました。通信環境をご確認ください。"); return; }
+  let QRLib;
+  try{ QRLib = (await import("https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm")).default; }
+  catch(e){ alert("QR生成ライブラリの読み込みに失敗しました。通信環境をご確認ください。"); return; }
   const url = `https://liff.line.me/${SHOP.liff_id}?token=${c.link_token}`;
   let qr;
-  try{ qr = await QRCode.toDataURL(url, { margin:1, width:320, errorCorrectionLevel:"M", color:{ dark:"#1a3c6e", light:"#ffffff" } }); }
+  try{ qr = await QRLib.toDataURL(url, { margin:1, width:320, errorCorrectionLevel:"M", color:{ dark:"#1a3c6e", light:"#ffffff" } }); }
   catch(e){ alert("QRの生成に失敗しました：" + (e.message||e)); return; }
   const win = window.open("", "_blank");
   if(!win){ alert("ポップアップがブロックされました。ブラウザのポップアップ許可をご確認ください。"); return; }
