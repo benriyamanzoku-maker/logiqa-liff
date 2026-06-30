@@ -39,6 +39,12 @@
   .opcell .lbl{ color:#778; } .opcell .chk label{ margin-right:10px; cursor:pointer; } .opcell .chk input{ margin-right:3px; vertical-align:middle; }
   .opcell .phone{ padding:3px 6px; border:1px solid #ccd; border-radius:5px; font-size:12px; width:140px; }
   .muted{ color:#9aa; font-size:12px; } .loading{ text-align:center; padding:40px; color:#9aa; }
+  .cust-sum{ cursor:pointer; } .cust-sum:hover{ background:#f8fafc; } .cust-sum td:first-child{ font-weight:600; }
+  .cust-sum .soon{ color:var(--red); font-weight:bold; } .cust-sum .exp{ color:#9aa; }
+  .arw{ color:#88a; font-size:11px; margin-right:2px; }
+  .cust-det>td{ background:#fafbfc; padding:14px 16px; }
+  .detgrid{ display:flex; gap:20px; flex-wrap:wrap; } .detcol{ flex:1; min-width:300px; }
+  .detlbl{ font-size:11px; color:#889; font-weight:600; margin-bottom:6px; }
   button{ font-family:inherit; }
   .btn{ font-size:11px; font-weight:bold; padding:4px 9px; border-radius:6px; border:1px solid var(--navy); background:#fff; color:var(--navy); cursor:pointer; margin:2px 4px 2px 0; }
   .btn:hover{ background:var(--navy); color:#fff; }
@@ -417,6 +423,13 @@ function show(which){
 }
 
 // ---------- 顧客・車両・履歴 ----------
+// 顧客名クリックで詳細行（保有車両・操作）を開閉する。
+function toggleCust(id){
+  const r = document.getElementById('det-'+id); if(!r) return;
+  const open = r.style.display === 'none';
+  r.style.display = open ? '' : 'none';
+  const a = document.getElementById('arw-'+id); if(a) a.textContent = open ? '▼' : '▶';
+}
 // 一覧はサーバー側で検索・ソート・ページングする（顧客が膨大でも軽い）。
 const PAGE_SIZE = 20;
 let CUST_Q = "", CUST_SORT = "name", CUST_PAGE = 0, CUST_TOTAL = 0, SEARCH_TIMER = null;
@@ -519,10 +532,11 @@ async function loadCustomers(){
     else { const s = CUST_PAGE*PAGE_SIZE+1, e = Math.min(CUST_PAGE*PAGE_SIZE+PAGE_SIZE, CUST_TOTAL); cntEl.textContent = `${s}–${e} / 全${CUST_TOTAL}件`; }
   }
 
-  // 顧客テーブル
+  // 顧客テーブル（顧客名クリックで詳細を開閉するアコーディオン）
   const rows = customers.map(c=>{
     const isLinked = !!c.line_user_id;
-    const vs = (byCust[c.id]||[]).map(v=>{
+    const vehicles = byCust[c.id]||[];
+    const vs = vehicles.map(v=>{
       const d = daysUntil(v.shaken_expiry);
       const cls = d!==null && d>=0 && d<=60 ? "soon" : (d!==null && d<0 ? "exp" : "");
       const dd = d===null ? "" : (d<0 ? `（満了済 ${-d}日前）` : `（あと${d}日）`);
@@ -532,6 +546,13 @@ async function loadCustomers(){
       return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button>${pdfBtn}<span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${esc(v.shaken_expiry||'-')} ${dd}　通知予定:${esc(v.notify_date||'-')}</div>`;
     }).join("") || '<span class="muted">車両なし</span>';
     const badge = isLinked ? `<span class="badge b-linked">連携済</span>` : `<span class="badge b-unlinked">未連携</span>`;
+    // サマリ行：直近満了（残日数が最小）の1台だけ表示。詳細は展開時に全台。
+    let near=null;
+    for(const v of vehicles){ const d=daysUntil(v.shaken_expiry); if(d===null) continue; if(near===null||d<near.d) near={d,v}; }
+    const sumCls = near && near.d>=0 && near.d<=60 ? "soon" : (near && near.d<0 ? "exp" : "");
+    const summary = vehicles.length===0 ? '<span class="muted">車両なし</span>'
+      : (near ? `<span class="${sumCls}">満了:${esc(near.v.shaken_expiry||'-')}${near.d<0?'（満了済）':`（あと${near.d}日）`}</span>${vehicles.length>1?` <span class="muted">他${vehicles.length-1}台</span>`:''}`
+              : `${vehicles.length}台`);
     const lineOn = c.notify_line !== false;
     const chBoxes = `<span class="chk"><label><input type="checkbox" id="nl-${c.id}"${lineOn?' checked':''} onchange="saveChannels('${c.id}')">LINEで通知する</label></span>`;
     const contact = `<div class="contact">`
@@ -545,11 +566,18 @@ async function loadCustomers(){
       + `<button class="btn qr" onclick="generateCard('${c.id}')">QR発行</button>`
       + sendBtn
       + `<button class="btn del" onclick="deleteCustomer('${c.id}','${esc(c.name)}')">顧客を削除</button>`
-      + contact + `</div>`;
-    return `<tr><td>${esc(c.name)}</td><td>${badge}<div class="muted">${c.linked_at?esc(c.linked_at.slice(0,10)):''}</div></td><td>${vs}</td><td>${ops}</td></tr>`;
+      + `</div>`;
+    return `<tr class="cust-sum" onclick="toggleCust('${c.id}')">`
+      + `<td><span class="arw" id="arw-${c.id}">▶</span> ${esc(c.name)}</td>`
+      + `<td>${badge}${c.linked_at?`<div class="muted">${esc(c.linked_at.slice(0,10))}</div>`:''}</td>`
+      + `<td>${summary}</td></tr>`
+      + `<tr class="cust-det" id="det-${c.id}" style="display:none"><td colspan="3">`
+      + `<div class="detgrid"><div class="detcol"><div class="detlbl">保有車両 / 車検満了</div>${vs}</div>`
+      + `<div class="detcol"><div class="detlbl">操作</div>${ops}${contact}</div></div>`
+      + `</td></tr>`;
   }).join("");
   document.getElementById("custWrap").innerHTML =
-    `<table><thead><tr><th style="width:16%">顧客名</th><th style="width:11%">LINE連携</th><th style="width:33%">保有車両 / 車検満了</th><th style="width:40%">操作</th></tr></thead><tbody>${rows||'<tr><td colspan=4 class="muted">顧客なし</td></tr>'}</tbody></table>`;
+    `<table><thead><tr><th style="width:34%">顧客名</th><th style="width:22%">LINE連携</th><th>直近の車検満了</th></tr></thead><tbody>${rows||'<tr><td colspan=3 class="muted">顧客なし</td></tr>'}</tbody></table>`;
   renderPager();
 }
 
