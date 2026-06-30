@@ -993,7 +993,7 @@ async function saveTpl(key){
 }
 async function resetTpl(key){
   if(!confirm("この文面を初期文に戻します。よろしいですか？")) return;
-  document.getElementById("ta-"+key).value=""; await saveTpl(key);
+  document.getElementById("ta-"+key).value=""; tplPreview(key); await saveTpl(key);
 }
 function insertKey(tok){
   const el = document.activeElement;
