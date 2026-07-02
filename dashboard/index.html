@@ -741,40 +741,51 @@ function bcFillFor(name, base){
   return String(base).replace(/\{お客様名\}/g, name||"");
 }
 
-async function sendBroadcast(){  // ボタンから呼ばれる＝パネルを開く
- try{
-  const { data:targets, error:qErr } = await sb.from("customers")
-    .select("id,name").not("line_user_id","is",null).order("name",{ascending:true});
-  if(qErr){ alert("対象の取得に失敗しました：" + qErr.message); return; }
-  if(!targets || targets.length===0){
-    alert("LINE連携済みの顧客がいません。QR連携が済んだ顧客にのみ一斉送信できます。"); return;
-  }
-  await loadBcMsgs();  // 登録済み任意メッセージを最新化
-  if(!BC_MSGS.length){
-    alert("送信できる任意メッセージがまだありません。\n「送信文面テンプレート」画面の『任意メッセージ（一斉送信用）』で先に登録してください。"); return;
-  }
-  BC_TARGETS = targets;
-  const elCount=document.getElementById("bcCount");
+async function sendBroadcast(){  // ボタンから呼ばれる＝まず即パネルを開き、中で読み込む
+  const modal=document.getElementById("bcModal");
+  if(!modal){ alert("一斉送信パネルが見つかりません。Ctrl+F5で再読み込みしてください。"); return; }
   const sel=document.getElementById("bcSelect");
   const ta=document.getElementById("bcText");
+  const elCount=document.getElementById("bcCount");
   const elResult=document.getElementById("bcResult");
   const elSend=document.getElementById("bcSend");
-  const modal=document.getElementById("bcModal");
-  const missing=[["bcCount",elCount],["bcSelect",sel],["bcText",ta],["bcResult",elResult],["bcSend",elSend],["bcModal",modal]]
-    .filter(([,el])=>!el).map(([n])=>n);
-  if(missing.length){ alert("一斉送信パネルの部品が見つかりません（"+missing.join("・")+"）。ページを再読み込み（Ctrl+F5）してください。"); return; }
-  elCount.textContent = targets.length;
-  sel.innerHTML = '<option value="">— 選択してください —</option>'
-    + BC_MSGS.map((m,i)=>`<option value="${i}">${esc(m.title)}</option>`).join("");
-  ta.value = ""; ta.disabled = false;
-  elResult.textContent = "";
-  elSend.disabled = false;
-  bcPreview();
+  // ① クリック即座にパネルを開く（反応を保証）。中身は読み込み中表示にする
+  if(elResult){ elResult.className="st"; elResult.textContent=""; }
+  if(elSend) elSend.disabled=true;
+  if(ta){ ta.value=""; ta.disabled=true; }
+  if(sel) sel.innerHTML='<option value="">読み込み中…</option>';
+  if(elCount) elCount.textContent="…";
   modal.classList.add("open");
-  sel.focus();
- }catch(e){
-  alert("一斉送信の準備でエラーが発生しました：\n" + (e && e.message ? e.message : e));
- }
+  // ② 開いた後にデータ取得。失敗・0件はパネル内に表示する
+  try{
+    const { data:targets, error:qErr } = await sb.from("customers")
+      .select("id,name").not("line_user_id","is",null).order("name",{ascending:true});
+    if(qErr) throw new Error("対象の取得に失敗：" + qErr.message);
+    if(!targets || targets.length===0){
+      if(sel) sel.innerHTML='<option value="">— 対象なし —</option>';
+      if(elCount) elCount.textContent="0";
+      if(elResult){ elResult.className="st"; elResult.textContent="LINE連携済みの顧客がいません。QR連携が済むと送れます。"; }
+      return;
+    }
+    await loadBcMsgs();  // 登録済み任意メッセージを最新化
+    if(!BC_MSGS.length){
+      if(sel) sel.innerHTML='<option value="">— 登録メッセージなし —</option>';
+      if(elCount) elCount.textContent=targets.length;
+      if(elResult){ elResult.className="st"; elResult.textContent="任意メッセージが未登録です。「送信文面テンプレート」画面で先に登録してください。"; }
+      return;
+    }
+    BC_TARGETS = targets;
+    if(elCount) elCount.textContent=targets.length;
+    if(sel) sel.innerHTML='<option value="">— 選択してください —</option>'
+      + BC_MSGS.map((m,i)=>`<option value="${i}">${esc(m.title)}</option>`).join("");
+    if(ta) ta.disabled=false;
+    if(elSend) elSend.disabled=false;
+    bcPreview();
+    if(sel) sel.focus();
+  }catch(e){
+    if(elResult){ elResult.className="st"; elResult.textContent="エラー：" + (e && e.message ? e.message : e); }
+    else alert("一斉送信の準備でエラー：" + (e && e.message ? e.message : e));
+  }
 }
 // プルダウンで選んだメッセージ本文を編集欄へ反映（{店舗名}は置換、{お客様名}は残す）
 function bcPick(){
