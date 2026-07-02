@@ -211,7 +211,7 @@
   <section id="view-templates" style="display:none">
     <h2>送信文面テンプレート（この店舗）</h2>
     <div class="tpl-help">
-      お客様へ送る文章を編集できます。下の<b>差込キーワード</b>はそのまま書くと送信時に実際の値へ置き換わります。<b>空欄のときは、枠内にグレーで表示されている初期文がそのまま送信されます</b>。初期文を少しだけ直したいときは<b>「初期文を読み込む」</b>を押すと編集欄に初期文が入るので、直して「この文面を保存」を押してください。
+      枠内の文章をそのまま直して<b>「この文面を保存」</b>を押すと反映されます。下の<b>差込キーワード</b>はそのまま書くと送信時に実際の値へ置き換わります。元の文章に戻したいときは<b>「初期文を読み込む」</b>を押してください。
       <div class="tpl-keys">
         <span onclick="insertKey('{店舗名}')">{店舗名}</span><span onclick="insertKey('{お客様名}')">{お客様名}</span><span onclick="insertKey('{ナンバー}')">{ナンバー}</span><span onclick="insertKey('{車種}')">{車種}</span><span onclick="insertKey('{満了日}')">{満了日}</span><span onclick="insertKey('{残日数}')">{残日数}</span>
       </div>
@@ -971,12 +971,11 @@ function loadTemplates(){
   document.getElementById("tplWrap").innerHTML = TPL_META.map(m=>`
     <div class="tpl-card">
       <h3>${m.label}<span class="ch">${esc(m.ch)}</span></h3>
-      <textarea id="ta-${m.key}" placeholder="${esc(DASH_DEFAULTS[m.key]||"")}" oninput="tplPreview('${m.key}')">${esc(SHOP[m.key]||"")}</textarea>
+      <textarea id="ta-${m.key}" placeholder="${esc(DASH_DEFAULTS[m.key]||"")}" oninput="tplPreview('${m.key}')">${esc(SHOP[m.key] || DASH_DEFAULTS[m.key] || "")}</textarea>
       <div class="tpl-prev" id="pv-${m.key}"></div>
       <div class="tpl-row">
         <button class="btn save" onclick="saveTpl('${m.key}')">この文面を保存</button>
         <button class="btn mini" onclick="loadDefaultTpl('${m.key}')">初期文を読み込む</button>
-        <button class="btn mini" onclick="resetTpl('${m.key}')">初期文に戻す</button>
         <span class="st" id="st-${m.key}"></span>
       </div>
     </div>`).join("");
@@ -985,7 +984,9 @@ function loadTemplates(){
 async function saveTpl(key){
   const ta = document.getElementById("ta-"+key), st = document.getElementById("st-"+key);
   st.className="st"; st.textContent="保存中…";
-  const value = ta.value.trim() ? ta.value : null; // 空欄保存で初期文に戻す（NULL）
+  // 空欄、または初期文と同一なら NULL 保存（＝初期文を使う。将来の初期文更新に追従）
+  const v = ta.value.trim();
+  const value = (!v || v === String(DASH_DEFAULTS[key]||"").trim()) ? null : ta.value;
   const { error } = await sb.from("shops").update({ [key]: value }).eq("id", SHOP.id);
   if(error){ st.textContent="保存失敗：" + error.message; return; }
   SHOP[key] = value;
@@ -999,10 +1000,6 @@ function loadDefaultTpl(key){
   ta.value = DASH_DEFAULTS[key]||""; tplPreview(key); ta.focus();
   const st = document.getElementById("st-"+key);
   if(st){ st.className="st ok"; st.textContent="初期文を読み込みました（編集後「この文面を保存」を押してください）"; setTimeout(()=>{st.textContent="";},3500); }
-}
-async function resetTpl(key){
-  if(!confirm("この文面を初期文に戻します。よろしいですか？")) return;
-  document.getElementById("ta-"+key).value=""; tplPreview(key); await saveTpl(key);
 }
 function insertKey(tok){
   const el = document.activeElement;
