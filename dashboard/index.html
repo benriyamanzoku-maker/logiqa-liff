@@ -211,7 +211,7 @@
   <section id="view-templates" style="display:none">
     <h2>送信文面テンプレート（この店舗）</h2>
     <div class="tpl-help">
-      お客様へ送る文章を編集できます。下の<b>差込キーワード</b>はそのまま書くと送信時に実際の値へ置き換わります。<b>空欄のときは、枠内にグレーで表示されている初期文がそのまま送信されます</b>（編集したい場合だけ上書きしてください）。
+      お客様へ送る文章を編集できます。下の<b>差込キーワード</b>はそのまま書くと送信時に実際の値へ置き換わります。<b>空欄のときは、枠内にグレーで表示されている初期文がそのまま送信されます</b>。初期文を少しだけ直したいときは<b>「初期文を読み込む」</b>を押すと編集欄に初期文が入るので、直して「この文面を保存」を押してください。
       <div class="tpl-keys">
         <span onclick="insertKey('{店舗名}')">{店舗名}</span><span onclick="insertKey('{お客様名}')">{お客様名}</span><span onclick="insertKey('{ナンバー}')">{ナンバー}</span><span onclick="insertKey('{車種}')">{車種}</span><span onclick="insertKey('{満了日}')">{満了日}</span><span onclick="insertKey('{残日数}')">{残日数}</span>
       </div>
@@ -975,6 +975,7 @@ function loadTemplates(){
       <div class="tpl-prev" id="pv-${m.key}"></div>
       <div class="tpl-row">
         <button class="btn save" onclick="saveTpl('${m.key}')">この文面を保存</button>
+        <button class="btn mini" onclick="loadDefaultTpl('${m.key}')">初期文を読み込む</button>
         <button class="btn mini" onclick="resetTpl('${m.key}')">初期文に戻す</button>
         <span class="st" id="st-${m.key}"></span>
       </div>
@@ -990,6 +991,14 @@ async function saveTpl(key){
   SHOP[key] = value;
   st.className="st ok"; st.textContent = value ? "保存しました" : "初期文に戻しました";
   setTimeout(()=>{ st.textContent=""; }, 2500);
+}
+function loadDefaultTpl(key){
+  // 初期文を編集欄に流し込む（軽微修正の起点にする）。保存はまだしない。
+  const ta = document.getElementById("ta-"+key); if(!ta) return;
+  if(ta.value.trim() && !confirm("編集中の文面を初期文で上書きします。よろしいですか？")) return;
+  ta.value = DASH_DEFAULTS[key]||""; tplPreview(key); ta.focus();
+  const st = document.getElementById("st-"+key);
+  if(st){ st.className="st ok"; st.textContent="初期文を読み込みました（編集後「この文面を保存」を押してください）"; setTimeout(()=>{st.textContent="";},3500); }
 }
 async function resetTpl(key){
   if(!confirm("この文面を初期文に戻します。よろしいですか？")) return;
