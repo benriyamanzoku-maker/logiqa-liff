@@ -133,6 +133,16 @@
   .modal-head h2{ font-size:18px; margin:0; color:#fff; background:none; padding:0; }
   .modal-x{ background:none; border:none; color:#fff; font-size:26px; line-height:1; cursor:pointer; padding:0 4px; }
   .modal-body{ padding:20px 26px 28px; }
+  .bc-lead{ font-size:13px; color:#444; line-height:1.7; margin:0 0 14px; }
+  .bc-lead code{ background:#eef1f6; padding:1px 5px; border-radius:4px; font-size:12px; }
+  .bc-lbl{ display:block; font-size:12px; font-weight:bold; color:var(--navy); margin:0 0 5px; }
+  .bc-text{ width:100%; min-height:120px; font-family:inherit; font-size:13.5px; line-height:1.7; color:#5b616b; border:1px solid var(--line-soft); border-radius:8px; padding:10px 12px; resize:vertical; box-sizing:border-box; }
+  .bc-text:focus{ outline:none; border-color:var(--navy); }
+  .bc-keys{ margin:8px 0 16px; }
+  .bc-keys span{ display:inline-block; background:#eef1f6; color:var(--navy); font-size:12px; padding:3px 9px; margin:0 6px 6px 0; border-radius:12px; cursor:pointer; }
+  .bc-keys span:hover{ background:#dde3ee; }
+  .bc-prev{ background:#f7f9fc; border:1px solid var(--line-soft); border-radius:8px; padding:12px 14px; font-size:13.5px; line-height:1.8; white-space:pre-wrap; color:#222; margin:0 0 18px; min-height:40px; }
+  .bc-row{ display:flex; align-items:center; gap:10px; }
   .gstep{ border:1px solid #d6e0ec; border-radius:10px; padding:0 18px 14px; margin:16px 0; }
   .gstep-h{ display:flex; align-items:center; gap:10px; margin:0 -18px 12px; padding:11px 18px; background:#eef7ff; border-bottom:1px solid #d6e0ec; border-radius:10px 10px 0 0; }
   .gstep-h .gnum{ display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; background:var(--navy); color:#fff; border-radius:50%; font-weight:bold; font-size:15px; flex:none; }
@@ -260,6 +270,30 @@
     </div>
 
     <!-- ===== 手順書モーダル ===== -->
+    <div class="modal-ov" id="bcModal" onclick="if(event.target===this)closeBroadcast()">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bcTitle">
+        <div class="modal-head">
+          <h2 id="bcTitle">全員へ一斉送信（LINE）</h2>
+          <button type="button" class="modal-x" onclick="closeBroadcast()" aria-label="閉じる">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="bc-lead">LINE連携済みの <b><span id="bcCount">0</span> 名</b> へ、下の本文を一斉送信します。文中の <code>{お客様名}</code> は各お客様のお名前に自動で置き換わります。</p>
+          <label class="bc-lbl">送信する本文</label>
+          <textarea id="bcText" class="bc-text" oninput="bcPreview()" placeholder="送信する本文を入力"></textarea>
+          <div class="bc-keys">
+            <span onclick="bcInsert('{お客様名}')">{お客様名}</span><span onclick="bcInsert('{店舗名}')">{店舗名}</span>
+          </div>
+          <label class="bc-lbl">プレビュー（例：田中 一郎 様の場合）</label>
+          <div class="bc-prev" id="bcPrev"></div>
+          <div class="bc-row">
+            <button class="btn save" id="bcSend" onclick="bcDoSend()">この本文で全員へ送信</button>
+            <button class="btn mini" onclick="closeBroadcast()">キャンセル</button>
+            <span class="st" id="bcResult"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-ov" id="lineGuide" onclick="if(event.target===this)closeLineGuide()">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lineGuideTitle">
         <div class="modal-head">
@@ -672,36 +706,76 @@ async function sendMessage(customerId, name){
   else { alert("送信に失敗しました：" + (data?.error||"unknown")); }
 }
 
-// ---------- 全員へ一斉送信（LINE連携済みの全顧客へ共通メッセージ） ----------
-async function sendBroadcast(){
-  const btn = document.getElementById("btnBroadcast");
-  // 連携済み（line_user_id あり）の全顧客を取得。※一覧のページング・検索に関わらず全件。
+// ---------- 全員へ一斉送信（専用パネル・テンプレ連動・宛名個別化） ----------
+let BC_TARGETS = [];  // 連携済み顧客リスト（{id,name}）
+const BC_SAMPLE = "田中 一郎";
+
+// {店舗名}を実店舗名で置換。{お客様名}は各人ぶんで後で置換するので残す。
+function bcBaseText(){
+  const raw = (SHOP && SHOP.tpl_message) ? String(SHOP.tpl_message) : (DASH_DEFAULTS.tpl_message||"");
+  return raw.replace(/\{店舗名\}/g, (SHOP&&SHOP.name)||"");
+}
+// 1顧客ぶんの本文を作る（{お客様名}を実名に）
+function bcFillFor(name, base){
+  return String(base).replace(/\{お客様名\}/g, name||"");
+}
+
+async function sendBroadcast(){  // ボタンから呼ばれる＝パネルを開く
   const { data:targets, error:qErr } = await sb.from("customers")
     .select("id,name").not("line_user_id","is",null).order("name",{ascending:true});
   if(qErr){ alert("対象の取得に失敗しました：" + qErr.message); return; }
   if(!targets || targets.length===0){
     alert("LINE連携済みの顧客がいません。QR連携が済んだ顧客にのみ一斉送信できます。"); return;
   }
-  const text = prompt(`LINE連携済みの ${targets.length} 名へ送る共通メッセージを入力してください：\n（例：年末年始の営業案内、キャンペーン告知など）`, "");
-  if(text===null) return;
-  if(!text.trim()){ alert("本文が空です。"); return; }
-  if(!confirm(`LINE連携済みの ${targets.length} 名へ、以下のメッセージを一斉送信します。\nよろしいですか？\n\n${text}`)) return;
+  BC_TARGETS = targets;
+  document.getElementById("bcCount").textContent = targets.length;
+  const ta = document.getElementById("bcText");
+  ta.value = bcBaseText();
+  ta.disabled = false;
+  document.getElementById("bcResult").textContent = "";
+  document.getElementById("bcSend").disabled = false;
+  bcPreview();
+  document.getElementById("bcModal").classList.add("open");
+  ta.focus();
+}
+function closeBroadcast(){ document.getElementById("bcModal").classList.remove("open"); }
+function bcPreview(){
+  const raw = document.getElementById("bcText").value;
+  const sample = bcFillFor(BC_SAMPLE, raw);
+  document.getElementById("bcPrev").textContent = sample || "（本文が空です）";
+}
+function bcInsert(tok){
+  const el = document.getElementById("bcText");
+  const s = el.selectionStart, e = el.selectionEnd;
+  el.value = el.value.slice(0,s) + tok + el.value.slice(e);
+  el.selectionStart = el.selectionEnd = s + tok.length; el.focus();
+  bcPreview();
+}
+async function bcDoSend(){
+  const raw = document.getElementById("bcText").value.trim();
+  if(!raw){ alert("本文が空です。"); return; }
+  const n = BC_TARGETS.length;
+  if(!confirm(`LINE連携済みの ${n} 名へ一斉送信します。\n（宛名「{お客様名}」は各お客様のお名前に置き換わります）\nよろしいですか？`)) return;
 
-  btn.disabled = true; const label = btn.textContent;
+  const sendBtn = document.getElementById("bcSend");
+  const ta = document.getElementById("bcText");
+  sendBtn.disabled = true; ta.disabled = true;
+  const res = document.getElementById("bcResult");
   let ok=0, ng=0; const fails=[];
-  for(let i=0;i<targets.length;i++){
-    const t = targets[i];
-    btn.textContent = `送信中… ${i+1}/${targets.length}`;
+  for(let i=0;i<n;i++){
+    const t = BC_TARGETS[i];
+    res.textContent = `送信中… ${i+1}/${n}`;
+    const text = bcFillFor(t.name, raw);
     try{
       const { data, error } = await sb.functions.invoke("send-message", { body:{ customer_id:t.id, text, type:"broadcast" } });
       if(error || !(data && data.ok)){ ng++; fails.push(t.name); }
       else ok++;
     }catch(e){ ng++; fails.push(t.name); }
   }
-  btn.disabled = false; btn.textContent = label;
-  let msg = `一斉送信が完了しました。\n成功：${ok} 名 ／ 失敗：${ng} 名`;
-  if(fails.length) msg += `\n\n失敗した顧客：${fails.slice(0,20).join("、")}${fails.length>20?" ほか":""}`;
-  alert(msg);
+  let msg = `完了：成功 ${ok} 名 ／ 失敗 ${ng} 名`;
+  if(fails.length) msg += `｜失敗：${fails.slice(0,20).join("、")}${fails.length>20?" ほか":""}`;
+  res.textContent = msg;
+  sendBtn.disabled = false; ta.disabled = false;
   load();
 }
 
