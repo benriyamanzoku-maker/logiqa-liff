@@ -207,7 +207,7 @@
         <option value="updated">更新日順（最近更新）</option>
       </select>
       <span class="cnt" id="custCnt"></span>
-      <button id="btnBroadcast" class="btn-broadcast" onclick="sendBroadcast()">全員へ一斉送信</button>
+      <button id="btnBroadcast" class="btn-broadcast" onclick="try{sendBroadcast()}catch(e){alert('呼び出しエラー：'+(e&&e.message?e.message:e))}">全員へ一斉送信</button>
     </div>
     <div id="custWrap"><div class="loading">読み込み中…</div></div>
     <div class="pager" id="custPager"></div>
@@ -415,6 +415,12 @@
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="./config.js"></script>
 <script>
+window.addEventListener("error", function(ev){
+  try{ alert("画面エラー：" + (ev && ev.message ? ev.message : ev) + (ev && ev.filename ? "\n@ "+ev.filename+":"+ev.lineno : "")); }catch(_){}
+});
+window.addEventListener("unhandledrejection", function(ev){
+  try{ var r=ev&&ev.reason; alert("処理エラー：" + (r&&r.message?r.message:r)); }catch(_){}
+});
 const TODAY = new Date();
 const daysUntil = (s) => { if(!s) return null; return Math.round((new Date(s) - TODAY)/86400000); };
 const esc = (s) => (s==null?"":String(s)).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
