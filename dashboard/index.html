@@ -165,7 +165,7 @@
   .gwarn{ background:#fff7e6; border:1px solid #f0d8a8; border-radius:8px; padding:12px 16px; margin:14px 0 0; font-size:13px; color:#8a5a00; }
 </style>
 </head><body>
-<div style="position:fixed;right:6px;bottom:6px;z-index:99999;background:#c0392b;color:#fff;font:bold 12px/1 sans-serif;padding:5px 9px;border-radius:6px;opacity:.9;pointer-events:none">版 2026-07-03a</div>
+<div style="position:fixed;right:6px;bottom:6px;z-index:99999;background:#c0392b;color:#fff;font:bold 12px/1 sans-serif;padding:5px 9px;border-radius:6px;opacity:.9;pointer-events:none">版 2026-07-03b</div>
 
 <!-- ===== ログイン画面 ===== -->
 <div id="loginView" style="display:none">
@@ -208,7 +208,7 @@
         <option value="updated">更新日順（最近更新）</option>
       </select>
       <span class="cnt" id="custCnt"></span>
-      <button id="btnBroadcast" class="btn-broadcast" onclick="try{sendBroadcast()}catch(e){alert('呼び出しエラー：'+(e&&e.message?e.message:e))}">全員へ一斉送信</button>
+      <button type="button" id="btnBroadcast" class="btn-broadcast" onclick="var mm=document.getElementById('bcModal'); if(mm){mm.classList.add('open');} else {alert('パネル要素が見つかりません');} try{sendBroadcast();}catch(e){alert('呼び出しエラー：'+(e&&e.message?e.message:e));}">全員へ一斉送信</button>
     </div>
     <div id="custWrap"><div class="loading">読み込み中…</div></div>
     <div class="pager" id="custPager"></div>
