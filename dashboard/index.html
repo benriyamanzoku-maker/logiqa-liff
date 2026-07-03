@@ -165,7 +165,7 @@
   .gwarn{ background:#fff7e6; border:1px solid #f0d8a8; border-radius:8px; padding:12px 16px; margin:14px 0 0; font-size:13px; color:#8a5a00; }
 </style>
 </head><body>
-<div style="position:fixed;right:6px;bottom:6px;z-index:99999;background:#c0392b;color:#fff;font:bold 12px/1 sans-serif;padding:5px 9px;border-radius:6px;opacity:.9;pointer-events:none">版 2026-07-03b</div>
+<div style="position:fixed;right:6px;bottom:6px;z-index:99999;background:#c0392b;color:#fff;font:bold 12px/1 sans-serif;padding:5px 9px;border-radius:6px;opacity:.9;pointer-events:none">版 2026-07-03c</div>
 
 <!-- ===== ログイン画面 ===== -->
 <div id="loginView" style="display:none">
@@ -184,7 +184,7 @@
 <header>
   <div>
     <h1>店舗ダッシュボード</h1>
-    <div class="sub">車屋さんのお知らせ便 ／ 顧客・連携・車検通知の管理 <b style="color:#c0392b">［画面バージョン 2026-07-03a］</b></div>
+    <div class="sub">車屋さんのお知らせ便 ／ 顧客・連携・車検通知の管理 <b style="color:#c0392b">［画面バージョン 2026-07-03c］</b></div>
   </div>
   <nav class="tabs">
     <button class="tab active" id="tab-customers" onclick="switchView('customers')">顧客管理</button>
@@ -208,7 +208,7 @@
         <option value="updated">更新日順（最近更新）</option>
       </select>
       <span class="cnt" id="custCnt"></span>
-      <button type="button" id="btnBroadcast" class="btn-broadcast" onclick="var mm=document.getElementById('bcModal'); if(mm){mm.classList.add('open');} else {alert('パネル要素が見つかりません');} try{sendBroadcast();}catch(e){alert('呼び出しエラー：'+(e&&e.message?e.message:e));}">全員へ一斉送信</button>
+      <button type="button" id="btnBroadcast" class="btn-broadcast" onclick="sendBroadcast()">全員へ一斉送信</button>
     </div>
     <div id="custWrap"><div class="loading">読み込み中…</div></div>
     <div class="pager" id="custPager"></div>
@@ -289,33 +289,7 @@
       <div class="lhint" style="margin-top:4px"><b>①アクセストークン・②Channel secret はこの端末に保存されません</b>（安全のため、画面を閉じると消えます）。LIFF ID のみ入力途中の一時保存に対応しています。秘匿値は「保存する」を押した時だけ安全に送信され、以後この画面には再表示されません。</div>
     </div>
 
-    <!-- ===== 手順書モーダル ===== -->
-    <div class="modal-ov" id="bcModal" onclick="if(event.target===this)closeBroadcast()">
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bcTitle">
-        <div class="modal-head">
-          <h2 id="bcTitle">全員へ一斉送信（LINE）</h2>
-          <button type="button" class="modal-x" onclick="closeBroadcast()" aria-label="閉じる">×</button>
-        </div>
-        <div class="modal-body">
-          <p class="bc-lead">LINE連携済みの <b><span id="bcCount">0</span> 名</b> へ一斉送信します。文中の <code>{お客様名}</code> は各お客様のお名前に自動で置き換わります。</p>
-          <label class="bc-lbl">登録済みメッセージから選ぶ</label>
-          <select id="bcSelect" class="bc-sel" onchange="bcPick()"><option value="">— 選択してください —</option></select>
-          <label class="bc-lbl" style="margin-top:12px">送信する本文（その場で微修正もできます）</label>
-          <textarea id="bcText" class="bc-text" oninput="bcPreview()" placeholder="送信する本文を入力"></textarea>
-          <div class="bc-keys">
-            <span onclick="bcInsert('{お客様名}')">{お客様名}</span><span onclick="bcInsert('{店舗名}')">{店舗名}</span>
-          </div>
-          <label class="bc-lbl">プレビュー（例：田中 一郎 様の場合）</label>
-          <div class="bc-prev" id="bcPrev"></div>
-          <div class="bc-row">
-            <button class="btn save" id="bcSend" onclick="bcDoSend()">この本文で全員へ送信</button>
-            <button class="btn mini" onclick="closeBroadcast()">キャンセル</button>
-            <span class="st" id="bcResult"></span>
-          </div>
-        </div>
-      </div>
-    </div>
-
+    <!-- ===== LINE連携 手順書モーダル ===== -->
     <div class="modal-ov" id="lineGuide" onclick="if(event.target===this)closeLineGuide()">
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lineGuideTitle">
         <div class="modal-head">
@@ -410,6 +384,33 @@
   </section>
 </div>
 <footer>株式会社LOGIQA ／ 車屋さんのお知らせ便</footer>
+</div>
+
+<!-- ===== 全員へ一斉送信モーダル（トップレベル：どのビューでも開ける） ===== -->
+<div class="modal-ov" id="bcModal" onclick="if(event.target===this)closeBroadcast()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bcTitle">
+    <div class="modal-head">
+      <h2 id="bcTitle">全員へ一斉送信（LINE）</h2>
+      <button type="button" class="modal-x" onclick="closeBroadcast()" aria-label="閉じる">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="bc-lead">LINE連携済みの <b><span id="bcCount">0</span> 名</b> へ一斉送信します。文中の <code>{お客様名}</code> は各お客様のお名前に自動で置き換わります。</p>
+      <label class="bc-lbl">登録済みメッセージから選ぶ</label>
+      <select id="bcSelect" class="bc-sel" onchange="bcPick()"><option value="">— 選択してください —</option></select>
+      <label class="bc-lbl" style="margin-top:12px">送信する本文（その場で微修正もできます）</label>
+      <textarea id="bcText" class="bc-text" oninput="bcPreview()" placeholder="送信する本文を入力"></textarea>
+      <div class="bc-keys">
+        <span onclick="bcInsert('{お客様名}')">{お客様名}</span><span onclick="bcInsert('{店舗名}')">{店舗名}</span>
+      </div>
+      <label class="bc-lbl">プレビュー（例：田中 一郎 様の場合）</label>
+      <div class="bc-prev" id="bcPrev"></div>
+      <div class="bc-row">
+        <button class="btn save" id="bcSend" onclick="bcDoSend()">この本文で全員へ送信</button>
+        <button class="btn mini" onclick="closeBroadcast()">キャンセル</button>
+        <span class="st" id="bcResult"></span>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
