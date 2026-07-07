@@ -214,11 +214,11 @@
     <h2>車検証PDFを取り込む</h2>
     <div class="imp">
       <div class="imp-head">
-        電子車検証（A4「自動車検査証記録事項」）のPDFを選ぶと、お客様・車両・車検満了日を自動で読み取ります。複数選択可。
-        <span class="muted">※読み取りはこのブラウザ内で行います。内容を確認してから登録できます。登録するとPDF原本は非公開ストレージに安全に保管され、後から「PDFを見る」で閲覧できます（同じ車両は最新1件のみ保持）。</span>
+        電子車検証（A4「自動車検査証記録事項」）のPDF、または車検証の写真（JPEG・PNG）を選ぶと、お客様・車両・車検満了日を自動で読み取ります。複数選択可。
+        <span class="muted">※読み取りはこのブラウザ内で行います。写真は自動で文字認識（OCR）します。<b>写真は読み取り精度が下がることがあるため、登録前に内容（特に満了日・車台番号）を必ずご確認・修正してください。</b>登録すると原本は非公開ストレージに安全に保管され、後から閲覧できます（同じ車両は最新1件のみ保持）。</span>
       </div>
       <div class="imp-row">
-        <input type="file" id="pdfInput" accept="application/pdf" multiple>
+        <input type="file" id="pdfInput" accept="application/pdf,image/jpeg,image/png" multiple>
         <button class="btn" id="pdfParseBtn" onclick="parsePdfs()">読み取る</button>
         <span class="muted" id="pdfMsg"></span>
       </div>
@@ -414,6 +414,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="./config.js"></script>
 <script>
 const TODAY = new Date();
@@ -1029,55 +1030,204 @@ function _extract(items){
   return result;
 }
 
+// ---------- 写真(JPEG/PNG)取込：Tesseract OCR → 全文テキストから項目抽出 ----------
+// PDFのテキストレイヤーが無い写真用。座標が無いのでラベル近傍＋正規表現で拾う。
+// 精度は写真品質に依存するため、抽出後は必ず確認プレビューで手修正する前提。
+function _extractFromText(text){
+  const result = {};
+  // 半角化・全角ハイフン統一・空白除去（改行は残す）
+  const compact = String(text||"")
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0))
+    .replace(/－/g,"-").replace(/[ \t　]/g,"").replace(/\r/g,"");
+  const lines = compact.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  const flat = compact.replace(/\n/g,"");
+
+  // 車台番号（例: LA650S-0016054）
+  let m = flat.match(/車台番号[:：]?([A-Z]{1,3}[A-Z0-9]{2,}-?[0-9]{3,})/);
+  if(m) result.車台番号 = m[1];
+
+  // 日付：ラベル近傍の最初の和暦日付を拾う
+  const dateAfter = (label)=>{
+    const idx = flat.indexOf(label);
+    if(idx<0) return null;
+    const seg = flat.slice(idx, idx+60);
+    const dm = seg.match(/(令和|平成|昭和)(元|\d{1,2})年(\d{1,2})月(\d{1,2})日/);
+    if(!dm) return null;
+    const y = _eraToAD(dm[1], dm[2]==="元"?1:dm[2]);
+    return y ? `${y}-${_pad(dm[3])}-${_pad(dm[4])}` : null;
+  };
+  result.車検満了日 = dateAfter("満了する日") || dateAfter("満了");
+
+  // 登録番号（例: 福井 583 え 4864）
+  m = flat.match(/([一-龥]{2,4})(\d{2,3})([ぁ-んァ-ン])(\d{1,4})/);
+  if(m) result.登録番号 = `${m[1]} ${m[2]} ${m[3]} ${m[4]}`;
+
+  // 車名（カタカナ）
+  m = flat.match(/車名[:：]?([ァ-ヶー]{2,})/);
+  if(m) result.車名 = m[1];
+
+  // 型式（原動機の型式は除外。例: 6BA-LA650S）
+  m = flat.match(/(?:^|[^機])型式[:：]?([0-9A-Z]{1,4}-[0-9A-Z]{3,})/);
+  if(m) result.型式 = m[1];
+
+  // 用途
+  if(/貨物/.test(flat)) result.用途="貨物"; else if(/乗用/.test(flat)) result.用途="乗用";
+
+  // 走行距離
+  m = flat.match(/走行距離計?表示値\]?([\d,]+)km/i);
+  if(m) result.走行距離 = m[1]+"km";
+
+  // 氏名（行ベース：ラベル行の後ろ or 次行）
+  const valFromLabel = (labels, stopRe)=>{
+    for(const lb of labels){
+      for(let i=0;i<lines.length;i++){
+        if(lines[i].includes(lb)){
+          let after = (lines[i].split(lb)[1]||"").replace(/氏名又は名称|の住所|[:：]/g,"").trim();
+          if(after && !/^(使用者|所有者|同じ|同上)/.test(after)) return after;
+          if(lines[i+1] && !stopRe.test(lines[i+1])) return lines[i+1].trim();
+        }
+      }
+    }
+    return "";
+  };
+  const stop = /住所|氏名|所有者|使用者|車名|型式|本拠|位置/;
+  const owner = valFromLabel(["所有者の氏名又は名称","所有者の氏名","所有者氏名"], stop);
+  const user  = valFromLabel(["使用者の氏名又は名称","使用者の氏名","使用者氏名"], stop);
+  result.所有者氏名 = _isPlaceholder(owner) ? (_isPlaceholder(user)? owner : user) : owner;
+  const oAddr = valFromLabel(["所有者の住所"], /氏名|車名|型式|本拠/);
+  const uAddr = valFromLabel(["使用者の住所"], /氏名|車名|型式|本拠/);
+  result.所有者住所 = _isPlaceholder(oAddr) ? (_isPlaceholder(uAddr)? oAddr : uAddr) : oAddr;
+
+  // 通知トリガー日（満了2か月前）
+  if(result.車検満了日 && /^\d{4}-\d{2}-\d{2}$/.test(result.車検満了日)){
+    const [y,mo,d] = result.車検満了日.split("-").map(Number);
+    const dt = new Date(Date.UTC(y,mo-1,d)); dt.setUTCMonth(dt.getUTCMonth()-2);
+    result.通知トリガー日 = dt.toISOString().slice(0,10);
+  }
+  return result;
+}
+// 画像1枚をOCRして全文テキストを返す（Tesseract.js・日本語）
+async function _ocrImage(file, onProgress){
+  if(typeof window.Tesseract==="undefined") throw new Error("OCRライブラリの読み込みに失敗しました。通信環境をご確認ください。");
+  const { data } = await window.Tesseract.recognize(file, "jpn", {
+    logger: m => { if(onProgress && m.status==="recognizing text") onProgress(Math.round(m.progress*100)); }
+  });
+  return data.text || "";
+}
+const _isImageFile = (f)=> /^image\//.test(f.type||"") || /\.(jpe?g|png)$/i.test(f.name||"");
+
 async function parsePdfs(){
   const input = document.getElementById("pdfInput"), msg = document.getElementById("pdfMsg");
   const files = [...(input.files||[])];
-  if(!files.length){ msg.textContent="PDFファイルを選んでください。"; return; }
+  if(!files.length){ msg.textContent="PDFまたは写真ファイルを選んでください。"; return; }
   if(typeof window.pdfjsLib==="undefined"){ msg.textContent="PDF読取ライブラリの読み込みに失敗しました。通信環境をご確認ください。"; return; }
-  msg.textContent = "読み取り中…"; PDF_PARSED = [];
+  PDF_PARSED = [];
+  let n=0;
   for(const f of files){
+    n++;
     try{
-      const v = _extract(await _loadItems(f));
+      let v, src;
+      if(_isImageFile(f)){
+        src = "photo";
+        msg.textContent = `写真を文字認識中… (${n}/${files.length})`;
+        const text = await _ocrImage(f, p=>{ msg.textContent = `写真を文字認識中… (${n}/${files.length}) ${p}%`; });
+        v = _extractFromText(text);
+      }else{
+        src = "pdf";
+        msg.textContent = `読み取り中… (${n}/${files.length})`;
+        v = _extract(await _loadItems(f));
+      }
       const ok = !!(v.車台番号 && v.車検満了日 && v.所有者氏名);
-      PDF_PARSED.push({ file:f.name, raw:f, ok, v, msg: ok?"":"車台番号／満了日／氏名が読み取れません（電子車検証PDFかご確認ください）" });
-    }catch(e){ PDF_PARSED.push({ file:f.name, raw:f, ok:false, v:{}, msg:"読み取りエラー："+(e.message||e) }); }
+      PDF_PARSED.push({ file:f.name, raw:f, src, ok, v,
+        msg: ok ? "" : (src==="photo"
+          ? "一部が読み取れませんでした。下の欄を直接ご確認・修正してください。"
+          : "車台番号／満了日／氏名が読み取れません（電子車検証PDFかご確認ください）") });
+    }catch(e){ PDF_PARSED.push({ file:f.name, raw:f, src:_isImageFile(f)?"photo":"pdf", ok:false, v:{}, msg:"読み取りエラー："+(e.message||e) }); }
   }
   msg.textContent = `${PDF_PARSED.length}件 読み取り完了`;
   renderImportPreview();
 }
+// 抽出結果は「確認・修正できる編集フォーム」で表示する。
+// 特に写真OCRは誤読があり得るため、満了日・車台番号は登録前に必ず目視修正できるようにする。
 function renderImportPreview(){
   const box = document.getElementById("pdfPreview");
   if(!PDF_PARSED.length){ box.innerHTML=""; return; }
-  const rows = PDF_PARSED.map((p,i)=>{
-    const v=p.v;
-    if(!p.ok) return `<tr><td><input type="checkbox" disabled></td><td>${esc(p.file)}</td><td colspan="6" class="err">${esc(p.msg)}</td></tr>`;
-    return `<tr><td><input type="checkbox" id="imp-${i}" checked></td><td>${esc(p.file)}</td><td>${esc(v.所有者氏名||"")}</td><td>${esc(v.登録番号||"")}</td><td>${esc(v.車名||"")}</td><td>${esc(v.型式||"")}</td><td>${esc(wareki(v.車検満了日))}</td><td>${esc(wareki(v.通知トリガー日))}</td></tr>`;
+  const inp=(id,val,ph)=>`<input id="${id}" value="${esc(val||"")}" placeholder="${esc(ph||"")}" style="width:100%;padding:5px;border:1px solid #ccc;border-radius:5px;font-size:13px;box-sizing:border-box">`;
+  const blocks = PDF_PARSED.map((p,i)=>{
+    const v=p.v||{};
+    const badge = p.src==="photo"
+      ? '<span style="background:#e8912a;color:#fff;padding:1px 8px;border-radius:9px;font-size:11px">写真OCR</span>'
+      : '<span style="background:#3060c0;color:#fff;padding:1px 8px;border-radius:9px;font-size:11px">PDF</span>';
+    const warn = p.msg ? `<div style="color:#c04040;font-size:12px;margin:4px 0 2px">${esc(p.msg)}</div>` : "";
+    return `<div style="border:1px solid #ddd;border-radius:9px;padding:10px 12px;margin:8px 0;background:#fff">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
+        <label style="font-weight:600"><input type="checkbox" id="imp-${i}" ${p.ok?"checked":""}> 登録する</label>
+        ${badge}<span class="muted" style="font-size:12px">${esc(p.file)}</span>
+      </div>
+      ${warn}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <label style="font-size:12px">お客様名${inp("f-name-"+i,v.所有者氏名,"氏名")}</label>
+        <label style="font-size:12px">住所${inp("f-addr-"+i,v.所有者住所,"住所")}</label>
+        <label style="font-size:12px">登録番号${inp("f-plate-"+i,v.登録番号,"福井 583 え 4864")}</label>
+        <label style="font-size:12px">車台番号${inp("f-chassis-"+i,v.車台番号,"LA650S-0016054")}</label>
+        <label style="font-size:12px">車名${inp("f-maker-"+i,v.車名,"ダイハツ")}</label>
+        <label style="font-size:12px">型式${inp("f-model-"+i,v.型式,"6BA-LA650S")}</label>
+        <label style="font-size:12px">車検満了日<input type="date" id="f-exp-${i}" value="${esc(v.車検満了日||"")}" oninput="_recalcNotify(${i})" style="width:100%;padding:5px;border:1px solid #ccc;border-radius:5px;font-size:13px;box-sizing:border-box"></label>
+        <label style="font-size:12px">通知予定（満了2か月前・自動）<div id="f-notify-${i}" class="muted" style="padding:6px 0;font-size:13px">${esc(wareki(v.通知トリガー日))||"—"}</div></label>
+      </div>
+    </div>`;
   }).join("");
-  const anyOk = PDF_PARSED.some(p=>p.ok);
-  box.innerHTML = `<table><thead><tr><th>登録</th><th>ファイル</th><th>お客様</th><th>登録番号</th><th>車名</th><th>型式</th><th>満了日</th><th>通知予定</th></tr></thead><tbody>${rows}</tbody></table>`
-    + (anyOk ? `<div class="imp-actions"><button class="btn reg" onclick="doImport()">選択した内容で登録</button><span class="muted" id="impResult"></span></div>`
-             : `<div class="imp-actions"><span class="muted">登録できる行がありません。</span></div>`);
+  box.innerHTML = blocks
+    + `<div class="imp-actions" style="margin-top:6px"><button class="btn reg" onclick="doImport()">選択した内容で登録</button><span class="muted" id="impResult"></span></div>`;
+}
+function _recalcNotify(i){
+  const iso = (document.getElementById("f-exp-"+i)||{}).value||"";
+  const out = document.getElementById("f-notify-"+i);
+  if(!out) return;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(iso)){
+    const [y,m,d]=iso.split("-").map(Number);
+    const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCMonth(dt.getUTCMonth()-2);
+    out.textContent = wareki(dt.toISOString().slice(0,10));
+  } else out.textContent = "—";
 }
 async function doImport(){
   if(!SHOP){ alert("店舗情報が未取得です。"); return; }
-  const targets = PDF_PARSED.map((p,i)=>({p,i})).filter(({p,i})=> p.ok && document.getElementById("imp-"+i) && document.getElementById("imp-"+i).checked);
-  if(!targets.length){ alert("登録する行を選んでください。"); return; }
-  if(!confirm(`${targets.length}件をお客様・車両として登録します。よろしいですか？\n（同じ車台番号は最新の満了日に更新されます）`)) return;
+  const gv=(id)=>{ const el=document.getElementById(id); return el? el.value.trim() : ""; };
+  const picked = PDF_PARSED.map((p,i)=>({p,i})).filter(({i})=>{ const c=document.getElementById("imp-"+i); return c && c.checked; });
+  if(!picked.length){ alert("登録する行を選んでください。"); return; }
+  const jobs=[], bad=[];
+  for(const {p,i} of picked){
+    const exp = gv("f-exp-"+i);
+    const v = {
+      所有者氏名: gv("f-name-"+i), 所有者住所: gv("f-addr-"+i),
+      登録番号: gv("f-plate-"+i), 車台番号: gv("f-chassis-"+i),
+      車名: gv("f-maker-"+i), 型式: gv("f-model-"+i),
+      用途: (p.v&&p.v.用途)||null, 走行距離: (p.v&&p.v.走行距離)||null,
+      車検満了日: exp, 通知トリガー日: null,
+    };
+    if(!v.所有者氏名 || !v.車台番号 || !/^\d{4}-\d{2}-\d{2}$/.test(v.車検満了日)){ bad.push(p.file); continue; }
+    const [y,m,d]=exp.split("-").map(Number);
+    const dt=new Date(Date.UTC(y,m-1,d)); dt.setUTCMonth(dt.getUTCMonth()-2);
+    v.通知トリガー日 = dt.toISOString().slice(0,10);
+    jobs.push({p,v});
+  }
+  if(!jobs.length){ alert("氏名・車台番号・満了日は必須です。ご確認ください。\n未入力："+bad.join(", ")); return; }
+  if(!confirm(`${jobs.length}件をお客様・車両として登録します。よろしいですか？${bad.length?`\n（必須未入力の ${bad.length}件はスキップ）`:""}\n（同じ車台番号は最新の満了日に更新されます）`)) return;
   const result = document.getElementById("impResult"); if(result) result.textContent="登録中…";
   let created=0, updated=0, failed=0, pdfFail=0;
-  for(const {p} of targets){
+  for(const {p,v} of jobs){
     try{
-      const custId = await _upsertCustomer(p.v.所有者氏名, p.v.所有者住所);
-      const r = await _upsertVehicle(custId, p.v);
+      const custId = await _upsertCustomer(v.所有者氏名, v.所有者住所);
+      const r = await _upsertVehicle(custId, v);
       if(r.action==="created") created++; else updated++;
-      // PDF原本を保管（失敗しても登録自体は成功扱い＝閲覧だけ後回し）
+      // 原本（PDF/写真）を保管（失敗しても登録自体は成功扱い＝閲覧だけ後回し）
       if(p.raw){
         try{ await _storeVehiclePdf(r.id, p.raw); }
-        catch(pe){ pdfFail++; console.error("PDF保管失敗", p.file, pe); }
+        catch(pe){ pdfFail++; console.error("原本保管失敗", p.file, pe); }
       }
     }catch(e){ failed++; console.error("取込失敗", p.file, e); }
   }
-  if(result) result.textContent = `完了：新規${created}件／更新${updated}件${failed?`／失敗${failed}件`:""}${pdfFail?`／PDF保管失敗${pdfFail}件`:""}`;
+  if(result) result.textContent = `完了：新規${created}件／更新${updated}件${failed?`／失敗${failed}件`:""}${pdfFail?`／原本保管失敗${pdfFail}件`:""}${bad.length?`／必須未入力スキップ${bad.length}件`:""}`;
   await load();
 }
 async function _upsertCustomer(name, address){
@@ -1103,12 +1253,16 @@ async function _upsertVehicle(customerId, v){
   return { id: ins[0].id, action: "created" };
 }
 
-// 車検証PDF原本を Storage(vehicle-docs) に保存し、pdf_path を vehicles に記録する。
-//   保存パス：<shop_id>/<vehicle_id>.pdf （同一車両は upsert で上書き＝最新1件のみ保持）
+// 車検証の原本（PDFまたは写真）を Storage(vehicle-docs) に保存し、pdf_path を vehicles に記録する。
+//   保存パス：<shop_id>/<vehicle_id>.<ext> （同一車両は upsert で上書き＝最新1件のみ保持）
 async function _storeVehiclePdf(vehicleId, file){
-  const path = `${SHOP.id}/${vehicleId}.pdf`;
+  const isImg = /^image\//.test(file.type||"") || /\.(jpe?g|png)$/i.test(file.name||"");
+  const isPng = (file.type||"").includes("png") || /\.png$/i.test(file.name||"");
+  const ext = isImg ? (isPng?"png":"jpg") : "pdf";
+  const ct  = isImg ? (isPng?"image/png":"image/jpeg") : "application/pdf";
+  const path = `${SHOP.id}/${vehicleId}.${ext}`;
   const { error: ue } = await sb.storage.from("vehicle-docs")
-    .upload(path, file, { upsert:true, contentType:"application/pdf" });
+    .upload(path, file, { upsert:true, contentType:ct });
   if(ue) throw ue;
   const { error: pe } = await sb.from("vehicles").update({ pdf_path: path }).eq("id", vehicleId);
   if(pe) throw pe;
