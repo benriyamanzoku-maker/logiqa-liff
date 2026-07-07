@@ -419,6 +419,15 @@
 const TODAY = new Date();
 const daysUntil = (s) => { if(!s) return null; return Math.round((new Date(s) - TODAY)/86400000); };
 const esc = (s) => (s==null?"":String(s)).replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+// 西暦ISO(YYYY-MM-DD) → 和暦（令和○年○月○日）。空/非日付はそのまま返す。DB保存値は西暦のまま、表示だけ和暦。
+const wareki = (iso) => {
+  if(!iso) return "";
+  const m = String(iso).slice(0,10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(!m) return String(iso);
+  const y=+m[1], mo=+m[2], d=+m[3];
+  const r = y - 2018; // 2019=令和1
+  return r>=1 ? `令和${r===1?"元":r}年${mo}月${d}日` : String(iso);
+};
 
 if(!window.SB_URL || !window.SB_ANON){ alert("設定(config.js)が読み込めません。build-dashboard-config.mjs を実行してください。"); }
 const sb = window.supabase.createClient(window.SB_URL, window.SB_ANON);
@@ -602,7 +611,7 @@ async function loadCustomers(){
       const pdfBtn = v.pdf_path
         ? `<button class="vpdf" title="車検証PDFを表示" onclick="viewPdf('${esc(v.pdf_path)}')">PDFを見る</button>`
         : "";
-      return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button>${pdfBtn}<span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${esc(v.shaken_expiry||'-')} ${dd}　通知予定:${esc(v.notify_date||'-')}</div>`;
+      return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button>${pdfBtn}<span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${v.shaken_expiry?esc(wareki(v.shaken_expiry)):'-'} ${dd}　通知予定:${v.notify_date?esc(wareki(v.notify_date)):'-'}</div>`;
     }).join("") || '<span class="muted">車両なし</span>';
     const badge = isLinked ? `<span class="badge b-linked">連携済</span>` : `<span class="badge b-unlinked">未連携</span>`;
     // サマリ行：直近満了（残日数が最小）の1台だけ表示。詳細は展開時に全台。
@@ -610,7 +619,7 @@ async function loadCustomers(){
     for(const v of vehicles){ const d=daysUntil(v.shaken_expiry); if(d===null) continue; if(near===null||d<near.d) near={d,v}; }
     const sumCls = near && near.d>=0 && near.d<=60 ? "soon" : (near && near.d<0 ? "exp" : "");
     const summary = vehicles.length===0 ? '<span class="muted">車両なし</span>'
-      : (near ? `<span class="${sumCls}">満了:${esc(near.v.shaken_expiry||'-')}${near.d<0?'（満了済）':`（あと${near.d}日）`}</span>${vehicles.length>1?` <span class="muted">他${vehicles.length-1}台</span>`:''}`
+      : (near ? `<span class="${sumCls}">満了:${near.v.shaken_expiry?esc(wareki(near.v.shaken_expiry)):'-'}${near.d<0?'（満了済）':`（あと${near.d}日）`}</span>${vehicles.length>1?` <span class="muted">他${vehicles.length-1}台</span>`:''}`
               : `${vehicles.length}台`);
     const lineOn = c.notify_line !== false;
     const chBoxes = `<span class="chk"><label><input type="checkbox" id="nl-${c.id}"${lineOn?' checked':''} onchange="saveChannels('${c.id}')">LINEで通知する</label></span>`;
@@ -627,7 +636,7 @@ async function loadCustomers(){
       + `</div>`;
     return `<tr class="cust-sum" onclick="toggleCust('${c.id}')">`
       + `<td><span class="arw" id="arw-${c.id}">▶</span> ${esc(c.name)}</td>`
-      + `<td>${badge}${c.linked_at?`<div class="muted">${esc(c.linked_at.slice(0,10))}</div>`:''}</td>`
+      + `<td>${badge}${c.linked_at?`<div class="muted">${esc(wareki(c.linked_at))}</div>`:''}</td>`
       + `<td>${summary}</td></tr>`
       + `<tr class="cust-det" id="det-${c.id}" style="display:none"><td colspan="3">`
       + `<div class="detgrid"><div class="detcol"><div class="detlbl">保有車両 / 車検満了</div>${vs}</div>`
@@ -1042,7 +1051,7 @@ function renderImportPreview(){
   const rows = PDF_PARSED.map((p,i)=>{
     const v=p.v;
     if(!p.ok) return `<tr><td><input type="checkbox" disabled></td><td>${esc(p.file)}</td><td colspan="6" class="err">${esc(p.msg)}</td></tr>`;
-    return `<tr><td><input type="checkbox" id="imp-${i}" checked></td><td>${esc(p.file)}</td><td>${esc(v.所有者氏名||"")}</td><td>${esc(v.登録番号||"")}</td><td>${esc(v.車名||"")}</td><td>${esc(v.型式||"")}</td><td>${esc(v.車検満了日||"")}</td><td>${esc(v.通知トリガー日||"")}</td></tr>`;
+    return `<tr><td><input type="checkbox" id="imp-${i}" checked></td><td>${esc(p.file)}</td><td>${esc(v.所有者氏名||"")}</td><td>${esc(v.登録番号||"")}</td><td>${esc(v.車名||"")}</td><td>${esc(v.型式||"")}</td><td>${esc(wareki(v.車検満了日))}</td><td>${esc(wareki(v.通知トリガー日))}</td></tr>`;
   }).join("");
   const anyOk = PDF_PARSED.some(p=>p.ok);
   box.innerHTML = `<table><thead><tr><th>登録</th><th>ファイル</th><th>お客様</th><th>登録番号</th><th>車名</th><th>型式</th><th>満了日</th><th>通知予定</th></tr></thead><tbody>${rows}</tbody></table>`
@@ -1110,7 +1119,7 @@ const TPL_META = [
   { key:"tpl_reminder",    label:"車検リマインド（2か月前）", ch:"満了2か月前のLINE自動配信で使用" },
   { key:"tpl_reminder_2w", label:"車検リマインド（2週間前）", ch:"満了2週間前の直前再通知" },
 ];
-const TPL_SAMPLE = { "店舗名":"サンプル店", "お客様名":"田中 一郎", "ナンバー":"金沢 500 あ 12-34", "車種":"トヨタ ノア", "満了日":"2026-07-15", "残日数":"35" };
+const TPL_SAMPLE = { "店舗名":"サンプル店", "お客様名":"田中 一郎", "ナンバー":"金沢 500 あ 12-34", "車種":"トヨタ ノア", "満了日":"令和8年7月15日", "残日数":"35" };
 // 各テンプレートの初期文（送信プログラム daily-reminder / scheduler と同一文面）。
 // 店舗が未入力（空欄）のときは、この初期文がそのまま送信される。画面ではグレー表示する。
 const DASH_DEFAULTS = {
