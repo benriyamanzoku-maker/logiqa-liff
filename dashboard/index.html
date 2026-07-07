@@ -850,7 +850,7 @@ async function generateCard(customerId){
   catch(e){ alert("QR生成ライブラリの読み込みに失敗しました。通信環境をご確認ください。"); return; }
   const url = `https://liff.line.me/${SHOP.liff_id}?token=${c.link_token}`;
   let qr;
-  try{ qr = await QRLib.toDataURL(url, { margin:1, width:320, errorCorrectionLevel:"M", color:{ dark:"#1a3c6e", light:"#ffffff" } }); }
+  try{ qr = await QRLib.toDataURL(url, { margin:1, width:480, errorCorrectionLevel:"M", color:{ dark:"#1a3c6e", light:"#ffffff" } }); }
   catch(e){ alert("QRの生成に失敗しました：" + (e.message||e)); return; }
   const win = window.open("", "_blank");
   if(!win){ alert("ポップアップがブロックされました。ブラウザのポップアップ許可をご確認ください。"); return; }
@@ -892,7 +892,7 @@ function cardHtml(c, qr, linked, url){
     + `.gold{ height:1mm;background:#b8860b; }`
     + `.body{ flex:1;display:flex;padding:3mm 4mm;gap:3mm;align-items:center; } .left{ flex:1;text-align:left; }`
     + `.lead{ font-size:10.5pt;color:#1a1a1a;font-weight:bold;line-height:1.5; } .lead b{ color:#1a3c6e; }`
-    + `.how{ font-size:7.5pt;color:#555;line-height:1.6;margin-top:2mm; } .qr{ width:24mm;height:24mm; }`
+    + `.how{ font-size:7.5pt;color:#555;line-height:1.6;margin-top:2mm; } .qr{ width:32mm;height:32mm; }`
     + `.foot{ background:#f5f6f8;border-top:1px solid #dde1e7;padding:1.6mm 4mm;font-size:8pt;color:#1a1a1a;text-align:right; }`
     + `@media print{ body{ background:#fff; } .toolbar{ display:none; } .sheet{ padding:0; } }`
     + `</style></head><body>`
