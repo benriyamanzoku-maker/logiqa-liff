@@ -921,7 +921,7 @@ function cardHtml(c, qr, linked, url){
     + `function done(){var t=btn.textContent;btn.textContent="コピーしました";setTimeout(function(){btn.textContent=t;},1500);}`
     + `if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(v).then(done,function(){el.select();document.execCommand("copy");done();});}`
     + `else{el.select();document.execCommand("copy");done();}}`
-    + `</script>`
+    + `<\/script>`
     + `</body></html>`;
 }
 
