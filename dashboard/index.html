@@ -944,7 +944,7 @@ const _eraToAD = (era,y)=> _eraBase[era]!=null ? _eraBase[era]+Number(y) : null;
 const _pad = (n)=> String(n).padStart(2,"0");
 const _normPlate = (s)=> (s||"").replace(/[Ａ-Ｚａ-ｚ０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)).replace(/[　\s\-－]/g,"").trim();
 // 所有者/使用者欄が「実名なし」のプレースホルダか（＊＊＊・使用者に同じ・同上・空）
-const _isPlaceholder = (s)=>{ const t=(s||"").replace(/[　\s]/g,""); if(!t) return true; if(/^[＊*_＿\-－]+$/.test(t)) return true; return /使用者.*同じ|同上/.test(t); };
+const _isPlaceholder = (s)=>{ const t=(s||"").replace(/[　\s]/g,""); if(!t) return true; if(/^[＊*_＿\-－]+$/.test(t)) return true; return /同じ|同上/.test(t); };
 
 async function _loadItems(file){
   const data = new Uint8Array(await file.arrayBuffer());
@@ -1005,13 +1005,13 @@ function _extract(items){
       }
     }
   }
-  // 所有者・使用者の氏名／住所を両方とり、所有者欄が「使用者に同じ／＊＊＊／同上／空」なら使用者を採用
+  // 通知先は「使用者（お客様）」を優先。使用者欄が「所有者に同じ／＊＊＊／同上／空」なら所有者へフォールバック
   const _nameOf=(label)=>{ const lr=_findLabelRow(rows,label); if(!lr) return ""; const vr=_valueRowBelow(rows,lr); return vr? vr.items.map(i=>i.str.replace(/[　\s]/g,"")).join(" ").trim() : ""; };
   const _addrOf=(label)=>{ const lr=_findLabelRow(rows,label); if(!lr) return ""; const vr=_valueRowBelow(rows,lr); return vr? vr.items.filter(i=> i.x<420 && !/^\[/.test(i.str) && !/\]$/.test(i.str.trim())).map(i=>i.str.replace(/[　\s]/g,"")).join("").replace(/[０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xfee0)) : ""; };
   const ownerName=_nameOf("所有者の氏名又は名称"), ownerAddr=_addrOf("所有者の住所");
   const userName =_nameOf("使用者の氏名又は名称"), userAddr =_addrOf("使用者の住所");
-  result.所有者氏名 = _isPlaceholder(ownerName) ? (_isPlaceholder(userName)? ownerName : userName) : ownerName;
-  result.所有者住所 = _isPlaceholder(ownerAddr) ? (_isPlaceholder(userAddr)? ownerAddr : userAddr) : ownerAddr;
+  result.所有者氏名 = _isPlaceholder(userName) ? (_isPlaceholder(ownerName)? userName : ownerName) : userName;
+  result.所有者住所 = _isPlaceholder(userAddr) ? (_isPlaceholder(ownerAddr)? userAddr : ownerAddr) : userAddr;
   const carLabel = _findLabelRow(rows,"車名");
   if(carLabel){ const vr=_valueRowBelow(rows,carLabel); if(vr){ const left=vr.items.filter(i=> i.x<200 && !/^\[/.test(i.str)); result.車名 = left.map(i=>i.str.replace(/[　\s]/g,"")).join(""); } }
   const typeLabel = _findLabelRow(rows,"型式");
@@ -1093,10 +1093,11 @@ function _extractFromText(text){
   const stop = /住所|氏名|所有者|使用者|車名|型式|本拠|位置/;
   const owner = valFromLabel(["所有者の氏名又は名称","所有者の氏名","所有者氏名"], stop);
   const user  = valFromLabel(["使用者の氏名又は名称","使用者の氏名","使用者氏名"], stop);
-  result.所有者氏名 = _isPlaceholder(owner) ? (_isPlaceholder(user)? owner : user) : owner;
+  // 使用者（お客様）優先。使用者がプレースホルダなら所有者へフォールバック。
+  result.所有者氏名 = _isPlaceholder(user) ? (_isPlaceholder(owner)? user : owner) : user;
   const oAddr = valFromLabel(["所有者の住所"], /氏名|車名|型式|本拠/);
   const uAddr = valFromLabel(["使用者の住所"], /氏名|車名|型式|本拠/);
-  result.所有者住所 = _isPlaceholder(oAddr) ? (_isPlaceholder(uAddr)? oAddr : uAddr) : oAddr;
+  result.所有者住所 = _isPlaceholder(uAddr) ? (_isPlaceholder(oAddr)? uAddr : oAddr) : uAddr;
 
   // 通知トリガー日（満了2か月前）
   if(result.車検満了日 && /^\d{4}-\d{2}-\d{2}$/.test(result.車検満了日)){
