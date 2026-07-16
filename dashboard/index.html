@@ -990,8 +990,12 @@ function _extract(items){
       vr.items.forEach((it,idx)=>{ if(/令\s*和|平\s*成|昭\s*和/.test(it.str)) eraIdx.push({ idx, x:it.x }); });
       if(eraIdx.length){
         const parseCol = (startIdx,endIdx)=>{
-          const eraStr = _toHalf(vr.items[startIdx].str).replace(/[^令和平成昭和]/g,"");
+          const eraTok = _toHalf(vr.items[startIdx].str);
+          const eraStr = eraTok.replace(/[^令和平成昭和]/g,"");
           const nums=[];
+          // 軽自動車等で「令和 10年」のように年号と年数が同一トークンの場合、年を取りこぼさない
+          const em = eraTok.match(/(?:令和|平成|昭和|大正|明治)\s*(\d+)/);
+          if(em) nums.push(em[1]);
           for(let k=startIdx+1;k<endIdx;k++){ const m=_toHalf(vr.items[k].str).match(/\d+/); if(m) nums.push(m[0]); }
           return { era:eraStr, nums };
         };
