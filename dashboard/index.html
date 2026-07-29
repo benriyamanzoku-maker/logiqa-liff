@@ -1240,6 +1240,33 @@ async function _upsertCustomer(name, address){
   const { data: found, error: e1 } = await sb.from("customers").select("id").eq("name",name).eq("address",addr).limit(1);
   if(e1) throw e1;
   if(found && found.length) return found[0].id;
+  // 氏名だけ一致（住所不一致）の既存顧客がいる場合：引っ越しか別人かを確認する。
+  // 引っ越し（同一人物）なら既存顧客の住所を更新 → LINE連携は維持され再登録不要。
+  // 別人なら新規顧客を作成 → LINEの案内には再度QRカードでの連携登録が必要になる。
+  const { data: sameName, error: e15 } = await sb.from("customers").select("id,address,line_user_id").eq("name",name).order("created_at",{ascending:false}).limit(5);
+  if(e15) throw e15;
+  if(sameName && sameName.length){
+    const c = sameName[0];
+    const linked = c.line_user_id ? "LINE連携済み" : "LINE未連携";
+    const multi = sameName.length > 1 ? `\n※同姓同名の登録が${sameName.length}件あります。最新の登録と比較しています。` : "";
+    const ok = confirm(
+      `【住所の変更を検出しました】\n`+
+      `${name} 様（${linked}）${multi}\n\n`+
+      `　登録済みの住所：${c.address||"（未登録）"}\n`+
+      `　車検証の住所　：${addr||"（記載なし）"}\n\n`+
+      `同じお客様（お引っ越し等）ですか？\n\n`+
+      `【OK】＝同じお客様 → 住所を新しいものに更新します。\n`+
+      `　　　 LINE連携はそのまま維持されます（再登録不要）。\n`+
+      `【キャンセル】＝別のお客様 → 新規のお客様として登録します。\n`+
+      `　　　 ⚠️ LINEのご案内には、再度QRカードでの連携登録が必要になります。`
+    );
+    if(ok){
+      const { error: eu } = await sb.from("customers").update({ address: address||null }).eq("id", c.id);
+      if(eu) throw eu;
+      return c.id;
+    }
+    alert(`${name} 様を新規のお客様として登録します。\n⚠️ LINEでご案内するには、再度QRカードでの連携登録が必要です。\n（お客様一覧から連携用QRカードを発行・お渡しください）`);
+  }
   const { data: created, error: e2 } = await sb.from("customers").insert({ shop_id: SHOP.id, name, address: address||null }).select("id");
   if(e2) throw e2;
   return created[0].id;
