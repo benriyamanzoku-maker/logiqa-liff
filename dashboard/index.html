@@ -60,6 +60,12 @@
   .veh .vdel:hover{ background:var(--red); color:#fff; border-color:var(--red); }
   .veh .vpdf{ float:right; margin-right:6px; font-size:10.5px; padding:1px 7px; border:1px solid #9fb6d6; color:#2b5fa3; background:#fff; border-radius:5px; cursor:pointer; }
   .veh .vpdf:hover{ background:#2b5fa3; color:#fff; border-color:#2b5fa3; }
+  .veh .vlink{ margin-top:6px; padding-top:6px; border-top:1px dashed #dde; font-size:11.5px; }
+  .veh .vlbtns{ float:right; }
+  .veh .vlb{ font-size:10.5px; padding:1px 7px; margin-left:6px; border:1px solid #9fb6d6; color:#2b5fa3; background:#fff; border-radius:5px; cursor:pointer; }
+  .veh .vlb:hover{ background:#2b5fa3; color:#fff; border-color:#2b5fa3; }
+  .veh .vlb.del{ border-color:#c9ccd3; color:#666; }
+  .veh .vlb.del:hover{ background:#666; color:#fff; border-color:#666; }
   .btn.logout{ font-size:12px; border-color:#9fb1cc; color:#fff; background:transparent; }
   .btn.logout:hover{ background:#fff; color:var(--navy); }
   footer{ text-align:center; color:#9aa; font-size:11px; padding:20px; }
@@ -438,6 +444,8 @@ if(window.pdfjsLib){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cd
 const SHOP_COLS = "id,name,plan,created_at,liff_id,tpl_reminder,tpl_message,tpl_postcard,tpl_reminder_2w";
 
 let SHOP = null, CUST_MAP = {}, TPL = {};
+// 車両ごとのLINE通知先（vehicle_id → 行）。VLINK_OK=false の場合は機能を表示しない（テーブル未作成等）。
+let VLINK_MAP = {}, VLINK_OK = false, VEH_MAP = {};
 
 // ---------- 認証 ----------
 async function doLogin(){
@@ -591,6 +599,18 @@ async function loadCustomers(){
     const { data } = await sb.from("vehicles").select("id,customer_id,plate,maker,shaken_expiry,notify_date,pdf_path").in("customer_id", ids);
     vehicles = data||[];
   }
+  VEH_MAP = Object.fromEntries(vehicles.map(v=>[v.id,v]));
+  // 車両ごとのLINE通知先。取得に失敗しても一覧表示は従来通り続行する。
+  VLINK_MAP = {}; VLINK_OK = false;
+  try{
+    const vres = vehicles.length
+      ? await sb.from("vehicle_line_links").select("id,vehicle_id,display_name,link_token,line_user_id,linked_at").in("vehicle_id", vehicles.map(v=>v.id))
+      : await sb.from("vehicle_line_links").select("id").limit(1);
+    if(!vres.error){
+      VLINK_OK = true;
+      if(vehicles.length) for(const l of (vres.data||[])) VLINK_MAP[l.vehicle_id] = l;
+    }
+  }catch(_e){ VLINK_OK = false; }
   const byCust = {};
   for(const v of vehicles){ (byCust[v.customer_id] ||= []).push(v); }
 
@@ -612,7 +632,21 @@ async function loadCustomers(){
       const pdfBtn = v.pdf_path
         ? `<button class="vpdf" title="車検証PDFを表示" onclick="viewPdf('${esc(v.pdf_path)}')">PDFを見る</button>`
         : "";
-      return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button>${pdfBtn}<span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${v.shaken_expiry?esc(wareki(v.shaken_expiry)):'-'} ${dd}　通知予定:${v.notify_date?esc(wareki(v.notify_date)):'-'}</div>`;
+      // LINE通知先（車両ごと）。未設定なら名義人へ通知。
+      let vlinkHtml = "";
+      if(VLINK_OK){
+        const l = VLINK_MAP[v.id];
+        vlinkHtml = l
+          ? `<div class="vlink">LINE通知先：<b>${esc(l.display_name)} 様</b> `
+            + (l.line_user_id
+                ? `<span class="badge b-linked">連携済</span>`
+                : `<span class="badge b-unlinked">未連携</span> <span class="muted">（連携するまでは名義人へ通知）</span>`)
+            + `<span class="vlbtns"><button class="vlb" onclick="vehicleCard('${v.id}')">QR発行</button>`
+            + `<button class="vlb del" onclick="removeVehicleLink('${v.id}')">通知先を戻す</button></span></div>`
+          : `<div class="vlink">LINE通知先：<span class="muted">名義人（${esc(c.name)} 様）</span>`
+            + `<span class="vlbtns"><button class="vlb" onclick="addVehicleLink('${v.id}','${c.id}')">この車の通知先を分ける</button></span></div>`;
+      }
+      return `<div class="veh"><button class="vdel" title="この車両を削除" onclick="deleteVehicle('${v.id}','${esc(v.plate||'')}')">車両削除</button>${pdfBtn}<span class="${cls}">${esc(v.plate||'-')} / ${esc(v.maker||'')}</span> 満了:${v.shaken_expiry?esc(wareki(v.shaken_expiry)):'-'} ${dd}　通知予定:${v.notify_date?esc(wareki(v.notify_date)):'-'}${vlinkHtml}</div>`;
     }).join("") || '<span class="muted">車両なし</span>';
     const badge = isLinked ? `<span class="badge b-linked">連携済</span>` : `<span class="badge b-unlinked">未連携</span>`;
     // サマリ行：直近満了（残日数が最小）の1台だけ表示。詳細は展開時に全台。
@@ -867,6 +901,44 @@ async function generateCard(customerId){
   win.document.write(cardHtml(c, qr, c.line_user_id ? "（連携済）" : "", url));
   win.document.close();
 }
+// ---------- 車両ごとのLINE通知先（同一名義で複数台の場合に、車ごとに通知先LINEを分ける） ----------
+async function addVehicleLink(vehicleId, customerId){
+  const v = VEH_MAP[vehicleId], c = CUST_MAP[customerId]; if(!v || !c || !SHOP) return;
+  const nm = prompt(
+    `${v.plate||""}（${v.maker||""}）の車検案内を、名義人（${c.name} 様）とは別のLINEへ送ります。\n`
+    + `実際に乗られる方のお名前を入力してください（案内文の宛名になります）。\n`
+    + `※その方がQRを読み取るまでは、これまで通り名義人へ通知されます。`, "");
+  if(nm===null) return;
+  const name = nm.trim();
+  if(!name){ alert("お名前が空欄のため中止しました。"); return; }
+  const { error } = await sb.from("vehicle_line_links").insert({ shop_id: SHOP.id, vehicle_id: vehicleId, display_name: name });
+  if(error){ alert("設定に失敗しました：" + error.message); return; }
+  await loadCustomers();
+  if(confirm(`${name} 様用の通知先を作成しました。続けてQRカードを発行しますか？`)) vehicleCard(vehicleId);
+}
+async function removeVehicleLink(vehicleId){
+  const l = VLINK_MAP[vehicleId], v = VEH_MAP[vehicleId]; if(!l) return;
+  if(!confirm(`${v?v.plate:""} の通知先「${l.display_name} 様」を解除し、名義人への通知に戻します。よろしいですか？`)) return;
+  const { error } = await sb.from("vehicle_line_links").delete().eq("id", l.id);
+  if(error){ alert("解除に失敗しました：" + error.message); return; }
+  await loadCustomers();
+}
+async function vehicleCard(vehicleId){
+  const l = VLINK_MAP[vehicleId]; if(!l) return;
+  if(!SHOP || !SHOP.liff_id){ alert("店舗のLINE連携(LIFF)が未設定のためQRを発行できません。LOGIQAへお問い合わせください。"); return; }
+  let QRLib;
+  try{ QRLib = (await import("https://cdn.jsdelivr.net/npm/qrcode@1.5.3/+esm")).default; }
+  catch(e){ alert("QR生成ライブラリの読み込みに失敗しました。通信環境をご確認ください。"); return; }
+  const url = `https://liff.line.me/${SHOP.liff_id}?token=${l.link_token}`;
+  let qr;
+  try{ qr = await QRLib.toDataURL(url, { margin:1, width:480, errorCorrectionLevel:"M", color:{ dark:"#1a3c6e", light:"#ffffff" } }); }
+  catch(e){ alert("QRの生成に失敗しました：" + (e.message||e)); return; }
+  const win = window.open("", "_blank");
+  if(!win){ alert("ポップアップがブロックされました。ブラウザのポップアップ許可をご確認ください。"); return; }
+  win.document.write(cardHtml({ name: l.display_name }, qr, l.line_user_id ? "（連携済）" : "", url));
+  win.document.close();
+}
+
 // A4・名刺サイズ(85×54mm)・信頼型(深紺×ゴールド)。新ウィンドウで印刷/PDF化。
 function cardHtml(c, qr, linked, url){
   const shopName = esc((SHOP&&SHOP.name)||""), name = esc(c.name||"");
